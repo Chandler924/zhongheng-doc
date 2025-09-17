@@ -1,0 +1,38 @@
+{
+  "name": "zongheng-mcp-docs",
+  "version": "1.0.0",
+  "description": "纵横框架文档站点",
+  "main": "index.js",
+  "scripts": {
+    "docs:dev": "vuepress dev docs",
+    "docs:build": "vuepress build docs",
+    "docs:clean-dev": "vuepress dev docs --clean-cache",
+    "mcp:dev": "node mcp-server/index.js",
+    "mcp:build": "tsc mcp-server/index.ts --outDir mcp-server/dist",
+    "deploy": "npm run docs:build && gh-pages -d docs/.vuepress/dist"
+  },
+  "keywords": [
+    "vuepress",
+    "documentation",
+    "mcp",
+    "ai"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.8.0",
+    "@vuepress/bundler-vite": "^2.0.0-rc.24",
+    "@vuepress/theme-default": "^2.0.0-rc.24",
+    "gh-pages": "^6.0.0",
+    "sass-embedded": "^1.92.1",
+    "typescript": "^5.2.2",
+    "vue": "^3.3.4",
+    "vuepress": "^2.0.0-rc.24"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0",
+    "fuse.js": "^7.0.0",
+    "gray-matter": "^4.0.3",
+    "markdown-it": "^13.0.2"
+  }
+}
