@@ -55,9 +55,25 @@ npm run docs:build
 
 ### 部署到GitHub Pages
 
-1. 将代码推送到GitHub仓库
-2. 在仓库设置中启用GitHub Pages
-3. GitHub Actions会自动构建和部署
+1. **本地构建**：
+   ```bash
+   # 构建文档站点
+   npm run docs:build
+   
+   # 构建MCP服务器
+   npm run mcp:build
+   ```
+
+2. **提交构建文件**：
+   ```bash
+   git add .
+   git commit -m "Build and deploy"
+   git push origin master
+   ```
+
+3. **启用GitHub Pages**：
+   - 在仓库设置中启用GitHub Pages
+   - GitHub Actions会自动部署预构建的文件
 
 ## 🔧 MCP服务器
 

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="generator" content="VuePress 2.0.0-rc.24" />
+    <style>
+      :root {
+        --vp-c-bg: #fff;
+      }
+
+      [data-theme='dark'] {
+        --vp-c-bg: #1b1b1f;
+      }
+
+      html,
+      body {
+        background-color: var(--vp-c-bg);
+      }
+    </style>
+    <script>
+      const useChoice = localStorage.getItem('vuepress-color-scheme')
+      const systemStatus =
+        'matchMedia' in window
+          ? window.matchMedia('(prefers-color-scheme: dark)').matches
+          : false
+
+      if (useChoice === 'light') {
+        document.documentElement.dataset.theme = 'light'
+      } else if (useChoice === 'dark' || systemStatus) {
+        document.documentElement.dataset.theme = 'dark'
+      }
+    </script>
+    <title>纵横框架文档</title><meta name="description" content="纵横前端和后端框架的完整文档">
+    <link rel="preload" href="/zhongheng-doc/assets/style-C2JCxPSn.css" as="style"><link rel="stylesheet" href="/zhongheng-doc/assets/style-C2JCxPSn.css">
+    <link rel="modulepreload" href="/zhongheng-doc/assets/app-BCmK-7Wy.js"><link rel="modulepreload" href="/zhongheng-doc/assets/404.html-BknJYiVu.js">
+    <link rel="prefetch" href="/zhongheng-doc/assets/deployment.html-DcnT1FEt.js" as="script"><link rel="prefetch" href="/zhongheng-doc/assets/index.html-ByJjzEf2.js" as="script"><link rel="prefetch" href="/zhongheng-doc/assets/api-design.html-D6Phvxvp.js" as="script"><link rel="prefetch" href="/zhongheng-doc/assets/getting-started.html-BggzSEwX.js" as="script"><link rel="prefetch" href="/zhongheng-doc/assets/components.html-E6i8AhSg.js" as="script"><link rel="prefetch" href="/zhongheng-doc/assets/getting-started.html-COdyODBb.js" as="script"><link rel="prefetch" href="/zhongheng-doc/assets/state-management.html-qzXHuC0K.js" as="script">
+  </head>
+  <body>
+    <div id="app"><!--[--><div class="vp-theme-container" vp-container data-v-33d3430e><main class="page" data-v-33d3430e><div vp-content data-v-33d3430e><h1 data-v-33d3430e>404</h1><blockquote data-v-33d3430e>There&#39;s nothing here.</blockquote><a class="route-link" href="/zhongheng-doc/" data-v-33d3430e>Take me home</a></div></main></div><!--[--><!----><!--]--><!--]--></div>
+    <script type="module" src="/zhongheng-doc/assets/app-BCmK-7Wy.js" defer></script>
+  </body>
+</html>

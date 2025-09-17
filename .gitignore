@@ -79,7 +79,7 @@ jspm_packages/
 
 # Nuxt.js 构建/生成输出
 .nuxt
-dist
+# dist  # 注释掉，允许提交构建文件
 
 # Gatsby 文件
 .cache/
