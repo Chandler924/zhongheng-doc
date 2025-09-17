@@ -105,6 +105,13 @@ MCP服务器允许AI编程工具读取文档内容。它提供了以下工具：
 }
 ```
 
+**注意**：确保MCP服务器已构建。如果使用GitHub仓库，需要先构建：
+```bash
+cd mcp-server
+npm install
+npm run build
+```
+
 ### 测试MCP服务器
 
 ```bash
