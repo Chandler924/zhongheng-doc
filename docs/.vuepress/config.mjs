@@ -9,7 +9,7 @@ export default defineUserConfig({
   description: '纵横前端和后端框架的完整文档',
 
   // 基础路径配置（用于GitHub Pages部署）
-  base: '/zongheng-mcp/',
+  base: '/zhongheng-doc/',
 
   // 主题配置
   theme: defaultTheme({
@@ -67,7 +67,7 @@ export default defineUserConfig({
       },
       {
         text: 'GitHub',
-        link: 'https://github.com/your-username/zongheng-mcp',
+        link: 'https://github.com/Chandler924/zhongheng-doc',
       },
     ],
 
