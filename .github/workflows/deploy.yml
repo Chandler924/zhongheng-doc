@@ -31,17 +31,18 @@ jobs:
         node-version: '22.14.0'
         cache: 'npm'
         
-    - name: Install dependencies
-      run: npm ci
-      
-    - name: Build MCP server
+    - name: Verify build files exist
       run: |
-        cd mcp-server
-        npm ci
-        npm run build
-      
-    - name: Build docs
-      run: npm run docs:build
+        echo "Checking if build files exist..."
+        if [ ! -d "docs/.vuepress/dist" ]; then
+          echo "Error: docs/.vuepress/dist not found. Please build locally first."
+          exit 1
+        fi
+        if [ ! -d "mcp-server/dist" ]; then
+          echo "Error: mcp-server/dist not found. Please build locally first."
+          exit 1
+        fi
+        echo "Build files verified successfully!"
       
     - name: Setup Pages
       uses: actions/configure-pages@v4
