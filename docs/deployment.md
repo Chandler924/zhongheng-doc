@@ -288,20 +288,6 @@ export default defineUserConfig({
 })
 ```
 
-### 2. 内容安全策略
-
-```javascript
-// CSP 配置
-export default defineUserConfig({
-  head: [
-    ['meta', {
-      'http-equiv': 'Content-Security-Policy',
-      content: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
-    }]
-  ]
-})
-```
-
 ## 备份策略
 
 ### 1. 自动备份
