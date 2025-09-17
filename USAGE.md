@@ -81,7 +81,7 @@ MCP服务器允许AI编程工具读取文档内容。它提供了以下工具：
   "mcpServers": {
     "zongheng-docs": {
       "command": "node",
-      "args": ["/path/to/zongheng-mcp/mcp-server/dist/index.js"],
+      "args": ["/path/to/zongheng-doc/mcp-server/index.js"],
       "env": {}
     }
   }
@@ -99,13 +99,15 @@ MCP服务器允许AI编程工具读取文档内容。它提供了以下工具：
   "mcpServers": {
     "zongheng-docs": {
       "command": "node",
-      "args": ["/path/to/zongheng-mcp/mcp-server/dist/index.js"]
+      "args": ["/path/to/zongheng-doc/mcp-server/index.js"]
     }
   }
 }
 ```
 
-**注意**：确保MCP服务器已构建。如果使用GitHub仓库，需要先构建：
+**注意**：
+- 现在只需要配置`mcp-server/index.js`，它会自动定位到`dist/index.js`
+- 确保MCP服务器已构建。如果使用GitHub仓库，需要先构建：
 ```bash
 cd mcp-server
 npm install
