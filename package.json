@@ -4,9 +4,9 @@
   "description": "纵横框架文档站点",
   "main": "index.js",
   "scripts": {
-    "docs:dev": "vuepress dev docs",
-    "docs:build": "vuepress build docs",
-    "docs:clean-dev": "vuepress dev docs --clean-cache",
+    "docs:dev": "npx vuepress dev docs",
+    "docs:build": "npx vuepress build docs",
+    "docs:clean-dev": "npx vuepress dev docs --clean-cache",
     "mcp:dev": "node mcp-server/index.js",
     "mcp:build": "tsc mcp-server/index.ts --outDir mcp-server/dist",
     "deploy": "npm run docs:build && gh-pages -d docs/.vuepress/dist"
