@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 
 // 纵横框架MCP服务器可执行文件
-// 直接导入并运行MCP服务器
+// 支持通过命令行参数传递站点URL
+
+// 直接导入并运行MCP服务器，传递命令行参数
 try {
-  await import('../remote-index.js');
+  // 将命令行参数设置为环境变量，供remote-mcp.js使用
+  process.env.MCP_ARGS = JSON.stringify(process.argv.slice(2));
+  await import('../remote-mcp.js');
 } catch (error) {
   console.error('启动纵横MCP服务器失败:', error);
   process.exit(1);

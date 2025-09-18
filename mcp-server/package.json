@@ -1,13 +1,13 @@
 {
   "name": "zongheng-mcp-docs",
-  "version": "1.0.3",
-  "description": "纵横框架文档MCP服务器 - 为AI编程工具提供文档访问能力",
-  "main": "remote-index.js",
+  "version": "1.1.0",
+  "description": "纵横框架文档MCP服务器 - 支持自定义站点URL的远程文档访问",
+  "main": "remote-mcp.js",
   "bin": {
     "zongheng-mcp": "./bin/zongheng-mcp"
   },
   "files": [
-    "remote-index.js",
+    "remote-mcp.js",
     "bin/",
     "README.md"
   ],
@@ -16,32 +16,22 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "tsc",
-    "dev": "tsx src/index.ts",
-    "start": "node remote-index.js",
-    "prepublishOnly": "npm run build"
+    "start": "node remote-mcp.js",
+    "test": "node remote-mcp.js --url=https://chandler924.github.io/zhongheng-doc"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^0.4.0",
-    "gray-matter": "^4.0.3",
-    "markdown-it": "^13.0.2",
-    "fuse.js": "^7.0.0",
-    "glob": "^10.3.10"
-  },
-  "devDependencies": {
-    "@types/node": "^20.8.0",
-    "typescript": "^5.2.2",
-    "tsx": "^4.0.0"
+    "@modelcontextprotocol/sdk": "^0.4.0"
   },
   "keywords": [
     "mcp",
     "documentation",
-    "zongheng",
+    "remote",
     "vue",
     "framework",
     "ai",
     "claude",
-    "cursor"
+    "cursor",
+    "customizable"
   ],
   "author": "Zongheng Framework Team",
   "license": "MIT",

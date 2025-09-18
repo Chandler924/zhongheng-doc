@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// 远程MCP服务器入口文件，从GitHub Pages获取文档内容
+// 纵横框架远程MCP服务器 - 支持通过args传递站点URL
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -9,7 +9,11 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 class RemoteZonghengMCPServer {
-  constructor() {
+  constructor(baseUrl = 'https://chandler924.github.io/zhongheng-doc') {
+    this.baseUrl = baseUrl.replace(/\/$/, ''); // 移除末尾的斜杠
+    this.cache = new Map();
+    this.cacheTimeout = 5 * 60 * 1000; // 5分钟缓存
+
     this.server = new Server({
       name: 'zongheng-remote-mcp-server',
       version: '1.0.0',
@@ -25,7 +29,7 @@ class RemoteZonghengMCPServer {
         tools: [
           {
             name: 'search_docs',
-            description: '在纵横框架文档中搜索相关内容（从GitHub Pages获取）',
+            description: `在文档站点中搜索相关内容（站点: ${this.baseUrl}）`,
             inputSchema: {
               type: 'object',
               properties: {
@@ -50,7 +54,7 @@ class RemoteZonghengMCPServer {
           },
           {
             name: 'get_doc_content',
-            description: '获取指定文档的完整内容（从GitHub Pages获取）',
+            description: `获取指定文档的完整内容（站点: ${this.baseUrl}）`,
             inputSchema: {
               type: 'object',
               properties: {
@@ -64,7 +68,7 @@ class RemoteZonghengMCPServer {
           },
           {
             name: 'list_docs',
-            description: '列出所有可用的文档',
+            description: `列出所有可用的文档（站点: ${this.baseUrl}）`,
             inputSchema: {
               type: 'object',
               properties: {
@@ -79,7 +83,15 @@ class RemoteZonghengMCPServer {
           },
           {
             name: 'get_doc_structure',
-            description: '获取文档的目录结构',
+            description: `获取文档的目录结构（站点: ${this.baseUrl}）`,
+            inputSchema: {
+              type: 'object',
+              properties: {},
+            },
+          },
+          {
+            name: 'get_site_info',
+            description: '获取当前配置的站点信息',
             inputSchema: {
               type: 'object',
               properties: {},
@@ -103,6 +115,8 @@ class RemoteZonghengMCPServer {
             return await this.handleListDocs(args);
           case 'get_doc_structure':
             return await this.handleGetDocStructure();
+          case 'get_site_info':
+            return await this.handleGetSiteInfo();
           default:
             throw new Error(`未知工具: ${name}`);
         }
@@ -163,7 +177,7 @@ class RemoteZonghengMCPServer {
             category,
             results,
             total: results.length,
-            source: 'GitHub Pages'
+            site: this.baseUrl
           }, null, 2),
         },
       ],
@@ -173,17 +187,35 @@ class RemoteZonghengMCPServer {
   async handleGetDocContent(args) {
     const { path } = args;
     
-    // 构建GitHub Pages URL
-    const baseUrl = 'https://chandler924.github.io/zhongheng-doc';
+    // 构建URL
     let url;
-    
     if (path === '/') {
-      url = `${baseUrl}/index.html`;
+      url = `${this.baseUrl}/index.html`;
     } else {
-      url = `${baseUrl}${path}.html`;
+      url = `${this.baseUrl}${path}.html`;
     }
 
     try {
+      // 检查缓存
+      const cached = this.cache.get(url);
+      if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                path,
+                title: cached.title,
+                content: cached.content,
+                url,
+                site: this.baseUrl,
+                cached: true
+              }, null, 2),
+            },
+          ],
+        };
+      }
+
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -195,6 +227,13 @@ class RemoteZonghengMCPServer {
       const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
       const title = titleMatch ? titleMatch[1].trim() : '文档标题';
 
+      // 缓存内容
+      this.cache.set(url, {
+        content: html,
+        title,
+        timestamp: Date.now()
+      });
+
       return {
         content: [
           {
@@ -204,7 +243,8 @@ class RemoteZonghengMCPServer {
               title,
               content: html,
               url,
-              source: 'GitHub Pages'
+              site: this.baseUrl,
+              cached: false
             }, null, 2),
           },
         ],
@@ -242,7 +282,7 @@ class RemoteZonghengMCPServer {
             category,
             documents: filteredDocs,
             total: filteredDocs.length,
-            source: 'GitHub Pages'
+            site: this.baseUrl
           }, null, 2),
         },
       ],
@@ -275,7 +315,23 @@ class RemoteZonghengMCPServer {
           type: 'text',
           text: JSON.stringify({
             ...structure,
-            source: 'GitHub Pages'
+            site: this.baseUrl
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  async handleGetSiteInfo() {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            site: this.baseUrl,
+            cacheSize: this.cache.size,
+            cacheTimeout: this.cacheTimeout,
+            version: '1.0.0'
           }, null, 2),
         },
       ],
@@ -285,10 +341,32 @@ class RemoteZonghengMCPServer {
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('纵横框架远程MCP服务器已启动（从GitHub Pages获取内容）');
+    console.error(`纵横框架远程MCP服务器已启动（站点: ${this.baseUrl}）`);
+  }
+}
+
+// 从命令行参数或环境变量获取站点URL
+let args = process.argv.slice(2);
+
+// 如果是从可执行文件启动，从环境变量获取参数
+if (process.env.MCP_ARGS) {
+  try {
+    args = JSON.parse(process.env.MCP_ARGS);
+  } catch (e) {
+    // 如果解析失败，使用原始参数
+  }
+}
+
+let baseUrl = 'https://chandler924.github.io/zhongheng-doc';
+
+// 检查是否有自定义URL参数
+if (args.length > 0) {
+  const urlArg = args.find(arg => arg.startsWith('--url=') || arg.startsWith('--site='));
+  if (urlArg) {
+    baseUrl = urlArg.split('=')[1];
   }
 }
 
 // 启动服务器
-const server = new RemoteZonghengMCPServer();
+const server = new RemoteZonghengMCPServer(baseUrl);
 server.run().catch(console.error);
