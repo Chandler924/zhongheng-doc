@@ -1,6 +1,6 @@
 {
   "name": "zongheng-mcp-docs",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "纵横框架文档MCP服务器 - 支持自定义站点URL的远程文档访问",
   "main": "remote-mcp.js",
   "bin": {

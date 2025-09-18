@@ -24,19 +24,46 @@ export default defineUserConfig({
         children: [
           {
             text: '快速开始',
-            link: '/frontend/getting-started',
+            link: '/frontend/guides/getting-started',
           },
           {
             text: '组件库',
-            link: '/frontend/components',
+            children: [
+              {
+                text: '组件概览',
+                link: '/frontend/components/',
+              },
+              {
+                text: 'ZFileUploader 文件上传',
+                link: '/frontend/components/z-file-uploader',
+              },
+              {
+                text: 'ZPageCard 页面卡片',
+                link: '/frontend/components/z-page-card',
+              },
+            ],
           },
           {
-            text: '状态管理',
-            link: '/frontend/state-management',
+            text: '开发指南',
+            children: [
+              {
+                text: '状态管理',
+                link: '/frontend/guides/state-management',
+              },
+              {
+                text: '路由配置',
+                link: '/frontend/guides/routing',
+              },
+            ],
           },
           {
-            text: '路由配置',
-            link: '/frontend/routing',
+            text: '架构设计',
+            children: [
+              {
+                text: '系统架构',
+                link: '/frontend/architecture/overview',
+              },
+            ],
           },
         ],
       },
@@ -77,10 +104,31 @@ export default defineUserConfig({
         {
           text: '前端框架',
           children: [
-            '/frontend/getting-started',
-            '/frontend/components',
-            '/frontend/state-management',
-            '/frontend/routing',
+            {
+              text: '快速开始',
+              link: '/frontend/guides/getting-started',
+            },
+            {
+              text: '组件库',
+              children: [
+                '/frontend/components/',
+                '/frontend/components/z-file-uploader',
+                '/frontend/components/z-page-card',
+              ],
+            },
+            {
+              text: '开发指南',
+              children: [
+                '/frontend/guides/state-management',
+                '/frontend/guides/routing',
+              ],
+            },
+            {
+              text: '架构设计',
+              children: [
+                '/frontend/architecture/overview',
+              ],
+            },
           ],
         },
       ],
