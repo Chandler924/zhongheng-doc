@@ -28,42 +28,15 @@ export default defineUserConfig({
           },
           {
             text: '组件库',
-            children: [
-              {
-                text: '组件概览',
-                link: '/frontend/components/',
-              },
-              {
-                text: 'ZFileUploader 文件上传',
-                link: '/frontend/components/z-file-uploader',
-              },
-              {
-                text: 'ZPageCard 页面卡片',
-                link: '/frontend/components/z-page-card',
-              },
-            ],
+            link: '/frontend/components/',
           },
           {
             text: '开发指南',
-            children: [
-              {
-                text: '状态管理',
-                link: '/frontend/guides/state-management',
-              },
-              {
-                text: '路由配置',
-                link: '/frontend/guides/routing',
-              },
-            ],
+            link: '/frontend/guides/state-management',
           },
           {
             text: '架构设计',
-            children: [
-              {
-                text: '系统架构',
-                link: '/frontend/architecture/overview',
-              },
-            ],
+            link: '/frontend/architecture/overview',
           },
         ],
       },

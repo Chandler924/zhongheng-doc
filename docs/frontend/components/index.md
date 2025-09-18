@@ -4,30 +4,9 @@
 
 ## 组件分类
 
-### 基础组件
-- [Button 按钮](./button.md) - 基础按钮组件
-- [Input 输入框](./input.md) - 输入框组件
-- [Card 卡片](./card.md) - 卡片容器组件
-
 ### 业务组件
-- [ZFileUploader 文件上传](./z-file-uploader.md) - 文件上传组件
-- [ZPageCard 页面卡片](./z-page-card.md) - 页面卡片组件
-
-### 布局组件
-- [Container 容器](./container.md) - 页面容器组件
-- [Grid 栅格](./grid.md) - 栅格布局组件
-
-### 数据展示组件
-- [Table 表格](./table.md) - 数据表格组件
-- [Pagination 分页](./pagination.md) - 分页组件
-
-### 反馈组件
-- [Message 消息提示](./message.md) - 消息提示组件
-- [Loading 加载](./loading.md) - 加载状态组件
-
-### 表单组件
-- [Form 表单](./form.md) - 表单组件
-- [FormItem 表单项](./form-item.md) - 表单项组件
+- [ZFileUploader 文件上传](./z-file-uploader.md) - 基于 Element Plus 的文件上传组件，支持多文件上传、文件预览、下载和删除功能
+- [ZPageCard 页面卡片](./z-page-card.md) - 基于 Element Plus 的页面卡片组件，支持标题、副标题、返回按钮等功能
 
 ## 快速开始
 
@@ -40,26 +19,30 @@ npm install @zongheng/frontend
 ### 引入组件
 
 ```javascript
-import { ZButton, ZInput, ZCard } from '@zongheng/frontend'
+import { ZFileUploader, ZPageCard } from '@zongheng/frontend'
 ```
 
 ### 使用组件
 
 ```vue
 <template>
-  <z-card title="示例">
-    <z-input v-model="value" placeholder="请输入内容" />
-    <z-button type="primary" @click="handleClick">提交</z-button>
-  </z-card>
+  <z-page-card title="文件上传示例">
+    <z-file-uploader 
+      v-model="files" 
+      :limit="5"
+      accept=".pdf,.doc,.docx"
+      @update:model-value="handleFileChange"
+    />
+  </z-page-card>
 </template>
 
 <script setup>
 import { ref } from 'vue'
 
-const value = ref('')
+const files = ref([])
 
-const handleClick = () => {
-  console.log('按钮被点击')
+const handleFileChange = (newFiles) => {
+  console.log('文件列表变化:', newFiles)
 }
 </script>
 ```
@@ -88,9 +71,28 @@ const handleClick = () => {
 }
 ```
 
+## 组件特性
+
+### ZFileUploader 文件上传组件
+- ✅ **多文件上传**：支持同时上传多个文件
+- ✅ **文件类型限制**：通过 `accept` 属性限制上传文件类型
+- ✅ **文件大小限制**：通过 `file-size` 属性限制单个文件大小
+- ✅ **文件数量限制**：通过 `limit` 属性限制上传文件数量
+- ✅ **文件操作**：支持预览、下载、删除等操作
+- ✅ **只读模式**：支持只读模式，用于展示已上传的文件
+- ✅ **自定义操作**：支持通过插槽添加自定义操作按钮
+
+### ZPageCard 页面卡片组件
+- ✅ **标题支持**：支持主标题和副标题
+- ✅ **返回按钮**：支持返回按钮和自定义返回逻辑
+- ✅ **阴影效果**：支持多种阴影显示模式
+- ✅ **插槽支持**：支持头部右侧操作区和页脚插槽
+- ✅ **事件监听**：支持标题变化事件监听
+- ✅ **导航控制**：支持隐藏导航栏
+
 ## 最佳实践
 
 1. **按需引入**：只引入你需要的组件，减少打包体积
 2. **主题定制**：使用CSS变量进行主题定制
-3. **响应式设计**：合理使用栅格系统实现响应式布局
-4. **表单验证**：使用Form组件的验证功能确保数据质量
+3. **组件组合**：合理组合使用不同组件构建页面
+4. **事件处理**：充分利用组件提供的事件进行业务逻辑处理
