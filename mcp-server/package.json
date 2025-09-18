@@ -1,6 +1,6 @@
 {
-  "name": "@zongheng/mcp-docs",
-  "version": "1.0.0",
+  "name": "@zhv3/mcp-docs",
+  "version": "1.0.1",
   "description": "纵横框架文档MCP服务器 - 为AI编程工具提供文档访问能力",
   "main": "remote-index.js",
   "bin": {
