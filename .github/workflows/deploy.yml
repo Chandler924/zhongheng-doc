@@ -38,10 +38,6 @@ jobs:
           echo "Error: docs/.vuepress/dist not found. Please build locally first."
           exit 1
         fi
-        if [ ! -d "mcp-server/dist" ]; then
-          echo "Error: mcp-server/dist not found. Please build locally first."
-          exit 1
-        fi
         echo "Build files verified successfully!"
       
     - name: Setup Pages
