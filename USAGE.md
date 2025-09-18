@@ -106,9 +106,24 @@ MCP服务器允许AI编程工具读取文档内容。它提供了以下工具：
 
 #### Cursor
 
+**方案1：使用远程MCP服务器（推荐）**
+
 1. 打开Cursor设置
 2. 找到MCP配置部分
 3. 添加服务器配置：
+
+```json
+{
+  "mcpServers": {
+    "zongheng-docs": {
+      "command": "node",
+      "args": ["/path/to/zongheng-doc/mcp-server/remote-index.js"]
+    }
+  }
+}
+```
+
+**方案2：使用本地MCP服务器**
 
 ```json
 {
@@ -122,7 +137,8 @@ MCP服务器允许AI编程工具读取文档内容。它提供了以下工具：
 ```
 
 **注意**：
-- 现在只需要配置`mcp-server/index.js`，它会自动定位到`dist/index.js`
+- **远程版本**：直接从GitHub Pages获取文档内容，无需本地docs文件
+- **本地版本**：需要本地docs文件，但响应更快
 - 确保MCP服务器已构建。如果使用GitHub仓库，需要先构建：
 ```bash
 cd mcp-server

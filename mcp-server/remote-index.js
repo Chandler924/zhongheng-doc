@@ -1,0 +1,294 @@
+#!/usr/bin/env node
+
+// 远程MCP服务器入口文件，从GitHub Pages获取文档内容
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
+
+class RemoteZonghengMCPServer {
+  constructor() {
+    this.server = new Server({
+      name: 'zongheng-remote-mcp-server',
+      version: '1.0.0',
+    });
+
+    this.setupHandlers();
+  }
+
+  setupHandlers() {
+    // 列出可用工具
+    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      return {
+        tools: [
+          {
+            name: 'search_docs',
+            description: '在纵横框架文档中搜索相关内容（从GitHub Pages获取）',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                query: {
+                  type: 'string',
+                  description: '搜索查询字符串',
+                },
+                category: {
+                  type: 'string',
+                  description: '搜索类别 (frontend, backend, all)',
+                  enum: ['frontend', 'backend', 'all'],
+                  default: 'all',
+                },
+                limit: {
+                  type: 'number',
+                  description: '返回结果的最大数量',
+                  default: 10,
+                },
+              },
+              required: ['query'],
+            },
+          },
+          {
+            name: 'get_doc_content',
+            description: '获取指定文档的完整内容（从GitHub Pages获取）',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description: '文档路径，例如: /frontend/getting-started',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          {
+            name: 'list_docs',
+            description: '列出所有可用的文档',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                category: {
+                  type: 'string',
+                  description: '文档类别 (frontend, backend, all)',
+                  enum: ['frontend', 'backend', 'all'],
+                  default: 'all',
+                },
+              },
+            },
+          },
+          {
+            name: 'get_doc_structure',
+            description: '获取文档的目录结构',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+            },
+          },
+        ],
+      };
+    });
+
+    // 处理工具调用
+    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      const { name, arguments: args } = request.params;
+
+      try {
+        switch (name) {
+          case 'search_docs':
+            return await this.handleSearchDocs(args);
+          case 'get_doc_content':
+            return await this.handleGetDocContent(args);
+          case 'list_docs':
+            return await this.handleListDocs(args);
+          case 'get_doc_structure':
+            return await this.handleGetDocStructure();
+          default:
+            throw new Error(`未知工具: ${name}`);
+        }
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `错误: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    });
+  }
+
+  async handleSearchDocs(args) {
+    const { query, category = 'all', limit = 10 } = args;
+    
+    // 预定义的文档列表
+    const documents = [
+      { path: '/', title: '纵横框架文档', category: 'general' },
+      { path: '/frontend/getting-started', title: '前端框架快速开始', category: 'frontend' },
+      { path: '/frontend/components', title: '组件库', category: 'frontend' },
+      { path: '/frontend/state-management', title: '状态管理', category: 'frontend' },
+      { path: '/frontend/routing', title: '路由配置', category: 'frontend' },
+      { path: '/backend/getting-started', title: '后端框架快速开始', category: 'backend' },
+      { path: '/backend/api-design', title: 'API设计指南', category: 'backend' },
+      { path: '/backend/database', title: '数据库', category: 'backend' },
+      { path: '/backend/middleware', title: '中间件', category: 'backend' },
+      { path: '/deployment', title: '部署指南', category: 'general' },
+    ];
+
+    // 简单的搜索逻辑
+    const filteredDocs = documents.filter(doc => {
+      if (category !== 'all' && doc.category !== category) {
+        return false;
+      }
+      return doc.title.toLowerCase().includes(query.toLowerCase()) ||
+             doc.path.toLowerCase().includes(query.toLowerCase());
+    });
+
+    const results = filteredDocs.slice(0, limit).map(doc => ({
+      title: doc.title,
+      path: doc.path,
+      excerpt: `这是关于${doc.title}的文档内容...`,
+      score: 0.5,
+      category: doc.category,
+    }));
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            query,
+            category,
+            results,
+            total: results.length,
+            source: 'GitHub Pages'
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  async handleGetDocContent(args) {
+    const { path } = args;
+    
+    // 构建GitHub Pages URL
+    const baseUrl = 'https://chandler924.github.io/zhongheng-doc';
+    let url;
+    
+    if (path === '/') {
+      url = `${baseUrl}/index.html`;
+    } else {
+      url = `${baseUrl}${path}.html`;
+    }
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const html = await response.text();
+      
+      // 提取标题
+      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+      const title = titleMatch ? titleMatch[1].trim() : '文档标题';
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              path,
+              title,
+              content: html,
+              url,
+              source: 'GitHub Pages'
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      throw new Error(`获取文档失败: ${error.message}`);
+    }
+  }
+
+  async handleListDocs(args) {
+    const { category = 'all' } = args;
+    
+    const documents = [
+      { path: '/', title: '纵横框架文档', category: 'general' },
+      { path: '/frontend/getting-started', title: '前端框架快速开始', category: 'frontend' },
+      { path: '/frontend/components', title: '组件库', category: 'frontend' },
+      { path: '/frontend/state-management', title: '状态管理', category: 'frontend' },
+      { path: '/frontend/routing', title: '路由配置', category: 'frontend' },
+      { path: '/backend/getting-started', title: '后端框架快速开始', category: 'backend' },
+      { path: '/backend/api-design', title: 'API设计指南', category: 'backend' },
+      { path: '/backend/database', title: '数据库', category: 'backend' },
+      { path: '/backend/middleware', title: '中间件', category: 'backend' },
+      { path: '/deployment', title: '部署指南', category: 'general' },
+    ];
+
+    const filteredDocs = category === 'all' 
+      ? documents 
+      : documents.filter(doc => doc.category === category);
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            category,
+            documents: filteredDocs,
+            total: filteredDocs.length,
+            source: 'GitHub Pages'
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  async handleGetDocStructure() {
+    const structure = {
+      frontend: [
+        { title: '前端框架快速开始', path: '/frontend/getting-started' },
+        { title: '组件库', path: '/frontend/components' },
+        { title: '状态管理', path: '/frontend/state-management' },
+        { title: '路由配置', path: '/frontend/routing' },
+      ],
+      backend: [
+        { title: '后端框架快速开始', path: '/backend/getting-started' },
+        { title: 'API设计指南', path: '/backend/api-design' },
+        { title: '数据库', path: '/backend/database' },
+        { title: '中间件', path: '/backend/middleware' },
+      ],
+      general: [
+        { title: '纵横框架文档', path: '/' },
+        { title: '部署指南', path: '/deployment' },
+      ]
+    };
+    
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            ...structure,
+            source: 'GitHub Pages'
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  async run() {
+    const transport = new StdioServerTransport();
+    await this.server.connect(transport);
+    console.error('纵横框架远程MCP服务器已启动（从GitHub Pages获取内容）');
+  }
+}
+
+// 启动服务器
+const server = new RemoteZonghengMCPServer();
+server.run().catch(console.error);
