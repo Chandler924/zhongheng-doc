@@ -25,20 +25,6 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
       
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '22.14.0'
-        cache: 'npm'
-        
-    - name: Verify build files exist
-      run: |
-        echo "Checking if build files exist..."
-        if [ ! -d "docs/.vuepress/dist" ]; then
-          echo "Error: docs/.vuepress/dist not found. Please build locally first."
-          exit 1
-        fi
-        echo "Build files verified successfully!"
       
     - name: Setup Pages
       uses: actions/configure-pages@v4
