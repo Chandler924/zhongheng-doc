@@ -1,13 +1,25 @@
 {
-  "name": "zongheng-mcp-server",
+  "name": "@zongheng/mcp-docs",
   "version": "1.0.0",
-  "description": "MCP服务器用于AI工具读取纵横框架文档",
-  "main": "dist/index.js",
+  "description": "纵横框架文档MCP服务器 - 为AI编程工具提供文档访问能力",
+  "main": "remote-index.js",
+  "bin": {
+    "zongheng-mcp": "./bin/zongheng-mcp"
+  },
+  "files": [
+    "remote-index.js",
+    "bin/",
+    "README.md"
+  ],
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
-    "start": "node dist/index.js"
+    "start": "node remote-index.js",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.4.0",
@@ -20,5 +32,25 @@
     "@types/node": "^20.8.0",
     "typescript": "^5.2.2",
     "tsx": "^4.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "documentation",
+    "zongheng",
+    "vue",
+    "framework",
+    "ai",
+    "claude",
+    "cursor"
+  ],
+  "author": "Zongheng Framework Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Chandler924/zhongheng-doc.git"
+  },
+  "homepage": "https://github.com/Chandler924/zhongheng-doc#readme",
+  "bugs": {
+    "url": "https://github.com/Chandler924/zhongheng-doc/issues"
   }
 }

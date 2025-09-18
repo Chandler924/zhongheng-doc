@@ -1,0 +1,10 @@
+#!/usr/bin/env node
+
+// 纵横框架MCP服务器可执行文件
+// 直接导入并运行MCP服务器
+try {
+  await import('../remote-index.js');
+} catch (error) {
+  console.error('启动纵横MCP服务器失败:', error);
+  process.exit(1);
+}
