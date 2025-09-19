@@ -96,20 +96,34 @@ export class RemoteDocumentService {
     const documents: Document[] = [];
     
     try {
-      // 方法1: 尝试从站点地图获取
+      // 方法1: 尝试从站点地图获取（优先使用sitemap）
+      console.log('开始文档发现流程...');
       const sitemapDocs = await this.discoverFromSitemap();
       if (sitemapDocs.length > 0) {
+        console.log(`✅ 从sitemap成功发现 ${sitemapDocs.length} 个文档`);
         return sitemapDocs;
       }
 
+      console.log('⚠️ sitemap发现失败，尝试其他方法...');
+      
       // 方法2: 从首页开始爬取链接
       const crawledDocs = await this.discoverFromCrawling();
       if (crawledDocs.length > 0) {
+        console.log(`✅ 从爬取成功发现 ${crawledDocs.length} 个文档`);
         return crawledDocs;
       }
 
+      console.log('⚠️ 爬取发现失败，使用常见路径模式...');
+      
       // 方法3: 基于VuePress配置的常见路径模式
-      return await this.discoverFromCommonPatterns();
+      const commonDocs = await this.discoverFromCommonPatterns();
+      if (commonDocs.length > 0) {
+        console.log(`✅ 从常见路径成功发现 ${commonDocs.length} 个文档`);
+        return commonDocs;
+      }
+      
+      console.log('⚠️ 所有发现方法失败，使用基本文档列表...');
+      return this.getBasicDocuments();
       
     } catch (error) {
       console.error('文档发现失败:', error);
@@ -124,26 +138,59 @@ export class RemoteDocumentService {
   private async discoverFromSitemap(): Promise<Document[]> {
     try {
       const sitemapUrl = `${this.baseUrl}/sitemap.xml`;
+      console.log(`正在从sitemap获取文档: ${sitemapUrl}`);
+      
       const response = await fetch(sitemapUrl);
       
       if (!response.ok) {
+        console.log(`sitemap获取失败: HTTP ${response.status}`);
         return [];
       }
 
       const sitemapXml = await response.text();
       const urls = this.parseSitemapXml(sitemapXml);
       
+      console.log(`从sitemap解析到 ${urls.length} 个URL`);
+      
       const documents: Document[] = [];
+      const validPaths = new Set<string>();
+      
+      // 先过滤出有效的路径
       for (const url of urls) {
         const path = this.extractPathFromUrl(url);
         if (path && this.isValidDocumentPath(path)) {
-          const doc = await this.createDocumentFromPath(path);
-          if (doc) {
-            documents.push(doc);
+          validPaths.add(path);
+        }
+      }
+      
+      console.log(`过滤后得到 ${validPaths.size} 个有效文档路径`);
+      
+      // 批量处理文档创建
+      const pathArray = Array.from(validPaths);
+      const batchSize = 10; // 批量处理，避免并发过多
+      
+      for (let i = 0; i < pathArray.length; i += batchSize) {
+        const batch = pathArray.slice(i, i + batchSize);
+        const batchPromises = batch.map(async (path) => {
+          try {
+            const doc = await this.createDocumentFromPath(path);
+            return doc;
+          } catch (error) {
+            console.error(`创建文档失败 ${path}:`, error);
+            return null;
           }
+        });
+        
+        const batchResults = await Promise.all(batchPromises);
+        documents.push(...batchResults.filter(doc => doc !== null));
+        
+        // 添加小延迟，避免请求过于频繁
+        if (i + batchSize < pathArray.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
 
+      console.log(`从sitemap成功创建 ${documents.length} 个文档`);
       return documents;
     } catch (error) {
       console.error('从站点地图发现文档失败:', error);
@@ -309,6 +356,55 @@ export class RemoteDocumentService {
     }
 
     return results;
+  }
+
+  /**
+   * 测试sitemap功能
+   */
+  async testSitemap(): Promise<{ success: boolean; urlCount: number; documentCount: number; error?: string }> {
+    try {
+      const sitemapUrl = `${this.baseUrl}/sitemap.xml`;
+      console.log(`测试sitemap: ${sitemapUrl}`);
+      
+      const response = await fetch(sitemapUrl);
+      if (!response.ok) {
+        return {
+          success: false,
+          urlCount: 0,
+          documentCount: 0,
+          error: `HTTP ${response.status}: ${response.statusText}`
+        };
+      }
+
+      const sitemapXml = await response.text();
+      const urls = this.parseSitemapXml(sitemapXml);
+      
+      console.log(`从sitemap解析到 ${urls.length} 个URL`);
+      
+      // 测试创建文档
+      const validPaths = new Set<string>();
+      for (const url of urls) {
+        const path = this.extractPathFromUrl(url);
+        if (path && this.isValidDocumentPath(path)) {
+          validPaths.add(path);
+        }
+      }
+      
+      console.log(`有效文档路径: ${validPaths.size} 个`);
+      
+      return {
+        success: true,
+        urlCount: urls.length,
+        documentCount: validPaths.size
+      };
+    } catch (error) {
+      return {
+        success: false,
+        urlCount: 0,
+        documentCount: 0,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
   }
 
   /**
@@ -480,14 +576,59 @@ export class RemoteDocumentService {
    */
   private parseSitemapXml(xml: string): string[] {
     const urls: string[] = [];
-    const urlRegex = /<loc>(.*?)<\/loc>/g;
-    let match;
     
-    while ((match = urlRegex.exec(xml)) !== null) {
-      urls.push(match[1]);
+    try {
+      // 使用更精确的正则表达式解析XML
+      const urlRegex = /<loc>\s*(.*?)\s*<\/loc>/g;
+      let match;
+      
+      while ((match = urlRegex.exec(xml)) !== null) {
+        const url = match[1].trim();
+        if (url && this.isValidSitemapUrl(url)) {
+          urls.push(url);
+        }
+      }
+      
+      // 去重并排序
+      return [...new Set(urls)].sort();
+    } catch (error) {
+      console.error('解析sitemap XML失败:', error);
+      return [];
     }
-    
-    return urls;
+  }
+
+  /**
+   * 验证sitemap中的URL是否有效
+   */
+  private isValidSitemapUrl(url: string): boolean {
+    try {
+      const urlObj = new URL(url);
+      
+      // 检查域名是否匹配
+      if (!urlObj.hostname.includes('chandler924.github.io')) {
+        return false;
+      }
+      
+      // 检查路径是否包含基础路径
+      if (!urlObj.pathname.startsWith('/zhongheng-doc/')) {
+        return false;
+      }
+      
+      // 排除一些特殊路径
+      if (urlObj.pathname.includes('/assets/') || 
+          urlObj.pathname.includes('.css') || 
+          urlObj.pathname.includes('.js') || 
+          urlObj.pathname.includes('.png') || 
+          urlObj.pathname.includes('.jpg') || 
+          urlObj.pathname.includes('.ico') ||
+          urlObj.pathname.includes('.svg')) {
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      return false;
+    }
   }
 
   /**
@@ -496,15 +637,31 @@ export class RemoteDocumentService {
   private extractPathFromUrl(url: string): string | null {
     try {
       const urlObj = new URL(url);
-      const path = urlObj.pathname;
+      let path = urlObj.pathname;
       
       // 移除基础路径前缀
       if (path.startsWith('/zhongheng-doc')) {
-        return path.replace('/zhongheng-doc', '') || '/';
+        path = path.replace('/zhongheng-doc', '') || '/';
+      }
+      
+      // 移除.html后缀
+      if (path.endsWith('.html')) {
+        path = path.slice(0, -5);
+      }
+      
+      // 确保路径以/开头
+      if (!path.startsWith('/')) {
+        path = '/' + path;
+      }
+      
+      // 处理根路径
+      if (path === '') {
+        path = '/';
       }
       
       return path;
     } catch (error) {
+      console.error(`URL解析失败: ${url}`, error);
       return null;
     }
   }

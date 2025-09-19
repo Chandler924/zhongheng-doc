@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "docs:dev": "npx vuepress dev docs",
-    "docs:build": "npx vuepress build docs",
+    "docs:build": "npx vuepress build docs && node docs/generate-sitemap.js",
     "docs:clean-dev": "npx vuepress dev docs --clean-cache",
     "mcp:dev": "node mcp-server/index.js",
     "mcp:build": "cd mcp-server && npm run build",

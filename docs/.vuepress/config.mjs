@@ -216,6 +216,15 @@ export default defineUserConfig({
 
   // 插件配置
   plugins: [
-    // 可以在这里添加更多插件
+    [
+      '@vuepress/plugin-sitemap',
+      {
+        hostname: 'https://chandler924.github.io',
+        base: '/zhongheng-doc/',
+        changefreq: 'weekly',
+        priority: 0.5,
+        exclude: ['/404.html']
+      }
+    ]
   ],
 })

@@ -57,6 +57,15 @@ export declare class RemoteDocumentService {
         category: string;
     }>>;
     /**
+     * 测试sitemap功能
+     */
+    testSitemap(): Promise<{
+        success: boolean;
+        urlCount: number;
+        documentCount: number;
+        error?: string;
+    }>;
+    /**
      * 智能搜索文档内容
      */
     searchDocuments(query: string, category?: 'frontend' | 'backend' | 'all', limit?: number): Promise<Array<{
@@ -79,6 +88,10 @@ export declare class RemoteDocumentService {
      * 解析站点地图XML
      */
     private parseSitemapXml;
+    /**
+     * 验证sitemap中的URL是否有效
+     */
+    private isValidSitemapUrl;
     /**
      * 从URL提取路径
      */
