@@ -401,9 +401,10 @@ export class RemoteDocumentService {
             if (path.startsWith('/zhongheng-doc')) {
                 path = path.replace('/zhongheng-doc', '') || '/';
             }
-            // 移除.html后缀
-            if (path.endsWith('.html')) {
-                path = path.slice(0, -5);
+            // 对于纯HTML静态站点，保留.html后缀
+            // 如果路径没有.html后缀且不是根路径，添加.html
+            if (!path.endsWith('.html') && path !== '/' && path !== '') {
+                path = path + '.html';
             }
             // 确保路径以/开头
             if (!path.startsWith('/')) {
