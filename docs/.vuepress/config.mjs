@@ -219,8 +219,8 @@ export default defineUserConfig({
     [
       '@vuepress/plugin-sitemap',
       {
-        hostname: 'https://chandler924.github.io',
-        base: '/zhongheng-doc/',
+        hostname: 'https://moli2.zt.com.cn',
+        base: '/zongheng-doc/',
         changefreq: 'weekly',
         priority: 0.5,
         exclude: ['/404.html']

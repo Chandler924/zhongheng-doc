@@ -5,10 +5,11 @@
 ## 🚀 快速开始
 
 ### 前端框架
-- [快速开始](/zongheng-doc/frontend/getting-started) - 5分钟搭建你的第一个应用
-- [组件库](/zongheng-doc/frontend/components) - 丰富的UI组件
-- [状态管理](/zongheng-doc/frontend/state-management) - 高效的状态管理方案
-- [路由配置](/zongheng-doc/frontend/routing) - 灵活的路由系统
+- [快速开始](/zongheng-doc/frontend/guides/getting-started) - 5分钟搭建你的第一个应用
+- [PC端组件](/zongheng-doc/frontend/components/pc/) - 丰富的PC端UI组件
+- [移动端组件](/zongheng-doc/frontend/components/mobile/) - 移动端专用组件
+- [状态管理](/zongheng-doc/frontend/guides/state-management) - 高效的状态管理方案
+- [架构设计](/zongheng-doc/frontend/architecture/overview) - 系统架构设计
 
 ### 后端框架
 - [快速开始](/zongheng-doc/backend/getting-started) - 快速搭建后端服务
