@@ -4,13 +4,16 @@
 
 ## 功能特性
 
-- 🔍 **文档搜索**：在指定文档站点中搜索相关内容
+- 🧠 **智能搜索**：支持自然语言查询和组件特定搜索
+- 🔍 **语义搜索**：理解用户意图，如"查询z-dialog组件的用法"
 - 📖 **内容获取**：获取指定文档的完整内容
 - 📋 **文档列表**：列出所有可用的文档
 - 🏗️ **结构查看**：查看文档的目录结构
 - 🌐 **远程访问**：从任意HTTP/HTTPS站点获取文档内容
 - ⚙️ **自定义站点**：支持通过参数指定文档站点URL
-- 💾 **智能缓存**：5分钟缓存机制，提高性能
+- 💾 **智能缓存**：多层缓存机制，提高性能
+- 🎯 **组件搜索**：专门针对组件文档的智能搜索
+- 📝 **内容提取**：改进的HTML内容提取，获取更准确的文档内容
 
 ## 快速开始
 
@@ -74,43 +77,32 @@ npm install -g zongheng-mcp-docs
 
 ## 可用工具
 
-### 1. search_docs
-在文档站点中搜索相关内容
+### 1. zongheng-docs_search_docs
+智能搜索纵横框架文档内容，支持自然语言查询和组件特定搜索
 
 **参数：**
-- `query` (必需): 搜索查询字符串
+- `query` (必需): 搜索查询字符串，支持自然语言，如"查询z-dialog组件的用法"、"按钮组件的API"等
 - `category` (可选): 搜索类别 (frontend, backend, all)
-- `limit` (可选): 返回结果的最大数量，默认10
 
 **示例：**
 ```json
 {
-  "name": "search_docs",
+  "name": "zongheng-docs_search_docs",
   "arguments": {
-    "query": "状态管理",
-    "category": "frontend",
-    "limit": 5
+    "query": "查询z-dialog组件的用法",
+    "category": "frontend"
   }
 }
 ```
 
-### 2. get_doc_content
-获取指定文档的完整内容
+**支持的查询类型：**
+- 组件查询：`"查询z-dialog组件的用法"`、`"按钮组件的API"`
+- 用法查询：`"如何使用表单组件"`、`"怎么使用表格"`
+- API查询：`"按钮组件的属性"`、`"表单组件的方法"`
+- 示例查询：`"表格组件的示例"`、`"对话框的代码"`
+- 指南查询：`"前端框架快速开始"`、`"组件开发指南"`
 
-**参数：**
-- `path` (必需): 文档路径，例如: /frontend/getting-started
-
-**示例：**
-```json
-{
-  "name": "get_doc_content",
-  "arguments": {
-    "path": "/frontend/state-management"
-  }
-}
-```
-
-### 3. list_docs
+### 2. zongheng-docs_list_docs
 列出所有可用的文档
 
 **参数：**
@@ -119,14 +111,30 @@ npm install -g zongheng-mcp-docs
 **示例：**
 ```json
 {
-  "name": "list_docs",
+  "name": "zongheng-docs_list_docs",
   "arguments": {
     "category": "frontend"
   }
 }
 ```
 
-### 4. get_doc_structure
+### 3. zongheng-docs_get_doc_content
+获取指定文档的完整内容
+
+**参数：**
+- `path` (必需): 文档路径，例如: /frontend/getting-started
+
+**示例：**
+```json
+{
+  "name": "zongheng-docs_get_doc_content",
+  "arguments": {
+    "path": "/frontend/state-management"
+  }
+}
+```
+
+### 4. zongheng-docs_get_doc_structure
 获取文档的目录结构
 
 **参数：** 无
@@ -134,20 +142,7 @@ npm install -g zongheng-mcp-docs
 **示例：**
 ```json
 {
-  "name": "get_doc_structure",
-  "arguments": {}
-}
-```
-
-### 5. get_site_info
-获取当前配置的站点信息
-
-**参数：** 无
-
-**示例：**
-```json
-{
-  "name": "get_site_info",
+  "name": "zongheng-docs_get_doc_structure",
   "arguments": {}
 }
 ```
@@ -186,8 +181,11 @@ npm install -g zongheng-mcp-docs
 
 ## 技术特性
 
+- **智能搜索**：支持自然语言查询和组件特定搜索
+- **语义理解**：解析用户查询意图，提供精准结果
+- **多层缓存**：文档列表缓存(1小时)、内容缓存(10分钟)、搜索缓存(5分钟)
+- **内容提取**：改进的HTML内容提取，获取更准确的文档内容
 - **远程获取**：从指定站点获取文档内容
-- **缓存机制**：5分钟缓存，提高性能
 - **错误处理**：网络错误时提供友好提示
 - **参数支持**：支持命令行参数自定义站点URL
 - **轻量级**：只依赖MCP SDK，无其他重型依赖

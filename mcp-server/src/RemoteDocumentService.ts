@@ -2,65 +2,100 @@ export interface Document {
   path: string;
   title: string;
   content: string;
-  frontmatter: Record<string, any>;
-  lastModified: Date;
   category: 'frontend' | 'backend' | 'general';
 }
 
-export interface DocumentStructure {
-  frontend: DocumentNode[];
-  backend: DocumentNode[];
-  general: DocumentNode[];
-}
-
-export interface DocumentNode {
-  title: string;
-  path: string;
-  children?: DocumentNode[];
+export interface SearchIntent {
+  originalQuery: string;
+  component: string | null;
+  operationType: 'usage' | 'api' | 'example' | 'guide' | 'general';
+  keywords: string[];
+  isComponentQuery: boolean;
 }
 
 export class RemoteDocumentService {
   private baseUrl: string;
-  private cache: Map<string, { content: string; timestamp: number }> = new Map();
   private documentCache: Map<string, Document[]> = new Map();
-  private cacheTimeout: number = 5 * 60 * 1000; // 5分钟缓存
-  private documentCacheTimeout: number = 30 * 60 * 1000; // 30分钟文档列表缓存
+  private contentCache: Map<string, { content: string; timestamp: number }> = new Map();
+  private documentCacheTimeout: number = 60 * 60 * 1000; // 1小时文档列表缓存
+  private contentCacheTimeout: number = 10 * 60 * 1000; // 10分钟内容缓存
+  private searchCache: Map<string, { results: Document[]; timestamp: number }> = new Map();
+  private searchCacheTimeout: number = 5 * 60 * 1000; // 5分钟搜索缓存
+  private ignoreSSL: boolean = true; // 忽略SSL证书验证
 
   constructor(baseUrl: string = 'https://moli2.zt.com.cn/zongheng-doc/') {
     this.baseUrl = baseUrl.replace(/\/$/, ''); // 移除末尾的斜杠
   }
 
-  async getDocumentContent(path: string): Promise<Document | null> {
+  /**
+   * 获取文档内容
+   */
+  async getDocumentContent(path: string): Promise<string> {
     try {
       // 构建URL
       const url = this.buildUrl(path);
       
       // 检查缓存
-      const cached = this.cache.get(url);
-      if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
-        return this.parseHtmlContent(cached.content, path);
+      const cached = this.contentCache.get(url);
+      if (cached && Date.now() - cached.timestamp < this.contentCacheTimeout) {
+        return cached.content;
       }
 
       // 获取内容
-      const response = await fetch(url);
+      const response = await this.customFetch(url);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const html = await response.text();
       
+      // 提取文本内容
+      const content = this.extractTextFromHtml(html);
+      
       // 缓存内容
-      this.cache.set(url, {
-        content: html,
+      this.contentCache.set(url, {
+        content,
         timestamp: Date.now()
       });
 
-      return this.parseHtmlContent(html, path);
+      return content;
     } catch (error) {
-      console.error(`获取文档失败 ${path}:`, error);
-      return null;
+      console.error(`获取文档内容失败 ${path}:`, error);
+      return '';
     }
   }
+
+  /**
+   * 自定义fetch方法，处理SSL证书问题
+   */
+  private async customFetch(url: string, options: RequestInit = {}): Promise<Response> {
+    if (this.ignoreSSL) {
+      // 设置环境变量忽略SSL证书验证
+      const originalNODE_TLS_REJECT_UNAUTHORIZED = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+      
+      try {
+        const response = await fetch(url, {
+          ...options,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            ...options.headers
+          }
+        });
+        return response;
+      } finally {
+        // 恢复原始设置
+        if (originalNODE_TLS_REJECT_UNAUTHORIZED !== undefined) {
+          process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalNODE_TLS_REJECT_UNAUTHORIZED;
+        } else {
+          delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+        }
+      }
+    } else {
+      return fetch(url, options);
+    }
+  }
+
 
   async listDocuments(category: 'frontend' | 'backend' | 'all' = 'all'): Promise<Document[]> {
     // 检查文档缓存
@@ -86,6 +121,237 @@ export class RemoteDocumentService {
     return filteredDocuments;
   }
 
+  /**
+   * 智能搜索文档 - 支持自然语言查询和组件特定搜索
+   */
+  async searchDocuments(query: string, category: 'frontend' | 'backend' | 'all' = 'all'): Promise<Document[]> {
+    try {
+      // 检查搜索缓存
+      const cacheKey = `search_${query}_${category}`;
+      const cached = this.searchCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < this.searchCacheTimeout) {
+        console.log(`使用搜索缓存: ${query}`);
+        return cached.results;
+      }
+      
+      // 获取所有文档
+      const allDocuments = await this.listDocuments('all');
+      
+      // 过滤文档
+      let documents = allDocuments;
+      if (category !== 'all') {
+        documents = allDocuments.filter(doc => doc.category === category);
+      }
+      
+      // 解析查询意图
+      const searchIntent = this.parseSearchIntent(query);
+      
+      // 执行智能搜索
+      const searchResults = this.performIntelligentSearch(documents, searchIntent);
+      
+      // 缓存搜索结果
+      this.searchCache.set(cacheKey, {
+        results: searchResults,
+        timestamp: Date.now()
+      });
+      
+      // 清理过期的搜索缓存
+      this.cleanupSearchCache();
+      
+      return searchResults;
+    } catch (error) {
+      console.error('搜索文档失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 清理过期的搜索缓存
+   */
+  private cleanupSearchCache(): void {
+    const now = Date.now();
+    for (const [key, value] of this.searchCache.entries()) {
+      if (now - value.timestamp > this.searchCacheTimeout) {
+        this.searchCache.delete(key);
+      }
+    }
+  }
+
+  /**
+   * 解析搜索意图
+   */
+  private parseSearchIntent(query: string): SearchIntent {
+    const queryLower = query.toLowerCase();
+    
+    // 检测组件查询
+    const componentMatch = queryLower.match(/(?:查询|搜索|使用|用法|组件)\s*([a-z-]+)/i);
+    const component = componentMatch ? componentMatch[1] : null;
+    
+    // 检测操作类型
+    const operationTypes = {
+      usage: ['用法', '使用', '怎么用', '如何使用', '怎么使用'],
+      api: ['api', '接口', '方法', '属性', '参数'],
+      example: ['示例', '例子', 'demo', '代码'],
+      guide: ['指南', '教程', '快速开始', '入门']
+    };
+    
+    let operationType: 'usage' | 'api' | 'example' | 'guide' | 'general' = 'general';
+    for (const [type, keywords] of Object.entries(operationTypes)) {
+      if (keywords.some(keyword => queryLower.includes(keyword))) {
+        operationType = type as 'usage' | 'api' | 'example' | 'guide' | 'general';
+        break;
+      }
+    }
+    
+    // 提取关键词
+    const keywords = queryLower
+      .replace(/[查询搜索使用用法组件示例例子指南教程]/g, '')
+      .split(/\s+/)
+      .filter(word => word.length > 1)
+      .slice(0, 5); // 限制关键词数量
+    
+    return {
+      originalQuery: query,
+      component,
+      operationType,
+      keywords,
+      isComponentQuery: !!component
+    };
+  }
+
+  /**
+   * 执行智能搜索
+   */
+  private performIntelligentSearch(documents: Document[], intent: SearchIntent): Document[] {
+    const results: Array<{ doc: Document; score: number }> = [];
+    
+    for (const doc of documents) {
+      let score = 0;
+      const searchText = `${doc.title} ${doc.content}`.toLowerCase();
+      
+      // 组件特定搜索
+      if (intent.isComponentQuery && intent.component) {
+        const componentScore = this.calculateComponentScore(doc, intent.component);
+        score += componentScore;
+      }
+      
+      // 关键词匹配
+      for (const keyword of intent.keywords) {
+        if (searchText.includes(keyword)) {
+          score += 2;
+          
+          // 标题中的关键词得分更高
+          if (doc.title.toLowerCase().includes(keyword)) {
+            score += 5;
+          }
+        }
+      }
+      
+      // 操作类型匹配
+      const operationScore = this.calculateOperationScore(doc, intent.operationType);
+      score += operationScore;
+      
+      // 完整查询匹配
+      if (searchText.includes(intent.originalQuery.toLowerCase())) {
+        score += 10;
+      }
+      
+      // 模糊匹配
+      const fuzzyScore = this.calculateFuzzyScore(doc, intent);
+      score += fuzzyScore;
+      
+      if (score > 0) {
+        results.push({ doc, score });
+      }
+    }
+    
+    // 按得分排序
+    results.sort((a, b) => b.score - a.score);
+    
+    // 返回前20个结果
+    return results.slice(0, 20).map(item => item.doc);
+  }
+
+  /**
+   * 计算组件匹配得分
+   */
+  private calculateComponentScore(doc: Document, component: string): number {
+    const searchText = `${doc.title} ${doc.content}`.toLowerCase();
+    const componentLower = component.toLowerCase();
+    
+    let score = 0;
+    
+    // 精确匹配
+    if (searchText.includes(componentLower)) {
+      score += 15;
+    }
+    
+    // 组件名称变体匹配
+    const variants = [
+      componentLower,
+      componentLower.replace(/-/g, ''),
+      componentLower.replace(/-/g, '_'),
+      `z-${componentLower}`,
+      `${componentLower}-component`
+    ];
+    
+    for (const variant of variants) {
+      if (searchText.includes(variant)) {
+        score += 8;
+      }
+    }
+    
+    // 标题中的组件名得分更高
+    if (doc.title.toLowerCase().includes(componentLower)) {
+      score += 20;
+    }
+    
+    return score;
+  }
+
+  /**
+   * 计算操作类型匹配得分
+   */
+  private calculateOperationScore(doc: Document, operationType: 'usage' | 'api' | 'example' | 'guide' | 'general'): number {
+    const searchText = `${doc.title} ${doc.content}`.toLowerCase();
+    
+    const operationKeywords: Record<string, string[]> = {
+      usage: ['用法', '使用', '怎么用', '如何使用', '怎么使用', 'usage', 'how to use'],
+      api: ['api', '接口', '方法', '属性', '参数', 'props', 'methods', 'events'],
+      example: ['示例', '例子', 'demo', '代码', 'example', 'sample', 'code'],
+      guide: ['指南', '教程', '快速开始', '入门', 'guide', 'tutorial', 'getting started']
+    };
+    
+    const keywords = operationKeywords[operationType] || [];
+    let score = 0;
+    
+    for (const keyword of keywords) {
+      if (searchText.includes(keyword)) {
+        score += 3;
+      }
+    }
+    
+    return score;
+  }
+
+  /**
+   * 计算模糊匹配得分
+   */
+  private calculateFuzzyScore(doc: Document, intent: SearchIntent): number {
+    const searchText = `${doc.title} ${doc.content}`.toLowerCase();
+    let score = 0;
+    
+    // 部分匹配
+    for (const keyword of intent.keywords) {
+      if (keyword.length > 2) {
+        const partialMatches = searchText.match(new RegExp(keyword.substring(0, 3), 'g')) || [];
+        score += partialMatches.length * 0.5;
+      }
+    }
+    
+    return score;
+  }
+
 
   /**
    * 从站点地图发现文档
@@ -95,7 +361,7 @@ export class RemoteDocumentService {
       const sitemapUrl = `${this.baseUrl}/sitemap.xml`;
       console.log(`正在从sitemap获取文档: ${sitemapUrl}`);
       
-      const response = await fetch(sitemapUrl);
+      const response = await this.customFetch(sitemapUrl);
       
       if (!response.ok) {
         console.log(`sitemap获取失败: HTTP ${response.status}`);
@@ -108,30 +374,23 @@ export class RemoteDocumentService {
       console.log(`从sitemap解析到 ${urls.length} 个URL`);
       
       const documents: Document[] = [];
-      const validPaths = new Set<string>();
       
-      // 先过滤出有效的路径
-      for (const url of urls) {
-        const path = this.extractPathFromUrl(url);
-        if (path && this.isValidDocumentPath(path)) {
-          validPaths.add(path);
-        }
-      }
+      // 先过滤出有效的URL
+      const validUrls = urls.filter(url => this.isValidDocumentUrl(url));
       
-      console.log(`过滤后得到 ${validPaths.size} 个有效文档路径`);
+      console.log(`过滤后得到 ${validUrls.length} 个有效文档URL`);
       
       // 批量处理文档创建
-      const pathArray = Array.from(validPaths);
       const batchSize = 10; // 批量处理，避免并发过多
       
-      for (let i = 0; i < pathArray.length; i += batchSize) {
-        const batch = pathArray.slice(i, i + batchSize);
-        const batchPromises = batch.map(async (path) => {
+      for (let i = 0; i < validUrls.length; i += batchSize) {
+        const batch = validUrls.slice(i, i + batchSize);
+        const batchPromises = batch.map(async (url) => {
           try {
-            const doc = await this.createDocumentFromPath(path);
+            const doc = await this.createDocumentFromUrl(url);
             return doc;
           } catch (error) {
-            console.error(`创建文档失败 ${path}:`, error);
+            console.error(`创建文档失败 ${url}:`, error);
             return null;
           }
         });
@@ -140,7 +399,7 @@ export class RemoteDocumentService {
         documents.push(...batchResults.filter(doc => doc !== null));
         
         // 添加小延迟，避免请求过于频繁
-        if (i + batchSize < pathArray.length) {
+        if (i + batchSize < validUrls.length) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
@@ -150,275 +409,6 @@ export class RemoteDocumentService {
     } catch (error) {
       console.error('从站点地图发现文档失败:', error);
       return [];
-    }
-  }
-
-
-  async getDocumentStructure(): Promise<DocumentStructure> {
-    const documents = await this.listDocuments();
-    
-    return {
-      frontend: documents
-        .filter(doc => doc.category === 'frontend')
-        .map(doc => ({ title: doc.title, path: doc.path })),
-      backend: documents
-        .filter(doc => doc.category === 'backend')
-        .map(doc => ({ title: doc.title, path: doc.path })),
-      general: documents
-        .filter(doc => doc.category === 'general')
-        .map(doc => ({ title: doc.title, path: doc.path }))
-    };
-  }
-
-  async getAllDocumentTexts(): Promise<Array<{ path: string; title: string; text: string; category: string }>> {
-    const documents = await this.listDocuments();
-    const results = [];
-
-    for (const doc of documents) {
-      try {
-        // 如果文档已经有内容，直接使用
-        let content = doc.content;
-        if (!content) {
-          const docContent = await this.getDocumentContent(doc.path);
-          content = docContent?.content || '';
-        }
-        
-        if (content) {
-          results.push({
-            path: doc.path,
-            title: doc.title,
-            text: this.extractTextFromHtml(content),
-            category: doc.category
-          });
-        }
-      } catch (error) {
-        console.error(`获取文档内容失败 ${doc.path}:`, error);
-      }
-    }
-
-    return results;
-  }
-
-  /**
-   * 测试sitemap功能
-   */
-  async testSitemap(): Promise<{ success: boolean; urlCount: number; documentCount: number; error?: string }> {
-    try {
-      const sitemapUrl = `${this.baseUrl}/sitemap.xml`;
-      console.log(`测试sitemap: ${sitemapUrl}`);
-      
-      const response = await fetch(sitemapUrl);
-      if (!response.ok) {
-        return {
-          success: false,
-          urlCount: 0,
-          documentCount: 0,
-          error: `HTTP ${response.status}: ${response.statusText}`
-        };
-      }
-
-      const sitemapXml = await response.text();
-      const urls = this.parseSitemapXml(sitemapXml);
-      
-      console.log(`从sitemap解析到 ${urls.length} 个URL`);
-      
-      // 测试创建文档
-      const validPaths = new Set<string>();
-      for (const url of urls) {
-        const path = this.extractPathFromUrl(url);
-        if (path && this.isValidDocumentPath(path)) {
-          validPaths.add(path);
-        }
-      }
-      
-      console.log(`有效文档路径: ${validPaths.size} 个`);
-      
-      return {
-        success: true,
-        urlCount: urls.length,
-        documentCount: validPaths.size
-      };
-    } catch (error) {
-      return {
-        success: false,
-        urlCount: 0,
-        documentCount: 0,
-        error: error instanceof Error ? error.message : String(error)
-      };
-    }
-  }
-
-  /**
-   * 智能搜索文档内容（支持大小写查询）
-   */
-  async searchDocuments(query: string, category: 'frontend' | 'backend' | 'all' = 'all', limit: number = 10): Promise<Array<{ path: string; title: string; excerpt: string; score: number; category: string }>> {
-    const documents = await this.listDocuments(category);
-    const results: Array<{ path: string; title: string; excerpt: string; score: number; category: string }> = [];
-    
-    // 支持大小写查询，同时保留原始查询和转换为小写
-    const queryLower = query.toLowerCase();
-    const queryWords = queryLower.split(/\s+/).filter(word => word.length > 0);
-
-    for (const doc of documents) {
-      let score = 0;
-      let excerpt = '';
-      
-      try {
-        // 获取文档内容
-        let content = doc.content;
-        if (!content) {
-          const docContent = await this.getDocumentContent(doc.path);
-          content = docContent?.content || '';
-        }
-        
-        const text = this.extractTextFromHtml(content);
-        const textLower = text.toLowerCase();
-        const titleLower = doc.title.toLowerCase();
-        
-        // 计算匹配分数
-        // 标题完全匹配（大小写敏感）
-        if (doc.title.includes(query)) {
-          score += 15; // 提高大小写匹配的分数
-        }
-        // 标题完全匹配（忽略大小写）
-        else if (titleLower.includes(queryLower)) {
-          score += 10;
-        }
-        
-        // 标题单词匹配（忽略大小写）
-        for (const word of queryWords) {
-          if (titleLower.includes(word)) {
-            score += 5;
-          }
-        }
-        
-        // 内容匹配（忽略大小写）
-        for (const word of queryWords) {
-          const matches = (textLower.match(new RegExp(word, 'g')) || []).length;
-          score += matches * 2;
-        }
-        
-        // 路径匹配（忽略大小写）
-        if (doc.path.toLowerCase().includes(queryLower)) {
-          score += 3;
-        }
-        
-        // 生成摘要
-        if (text) {
-          excerpt = this.generateExcerpt(text, queryWords);
-        }
-        
-        if (score > 0) {
-          results.push({
-            path: doc.path,
-            title: doc.title,
-            excerpt: excerpt || `这是关于${doc.title}的文档内容...`,
-            score: score / 10, // 标准化分数
-            category: doc.category
-          });
-        }
-      } catch (error) {
-        console.error(`搜索文档失败 ${doc.path}:`, error);
-      }
-    }
-
-    // 按分数排序并限制结果数量
-    return results
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit);
-  }
-
-  /**
-   * 生成文档摘要
-   */
-  private generateExcerpt(text: string, queryWords: string[]): string {
-    const sentences = text.split(/[.!?。！？]/).filter(s => s.trim().length > 0);
-    
-    // 寻找包含查询词的句子
-    for (const sentence of sentences) {
-      const sentenceLower = sentence.toLowerCase();
-      for (const word of queryWords) {
-        if (sentenceLower.includes(word)) {
-          return sentence.trim().substring(0, 200) + (sentence.length > 200 ? '...' : '');
-        }
-      }
-    }
-    
-    // 如果没有找到匹配的句子，返回开头部分
-    return text.substring(0, 200) + (text.length > 200 ? '...' : '');
-  }
-
-  private buildUrl(path: string): string {
-    // 处理路径
-    let urlPath = path;
-    if (!urlPath.startsWith('/')) {
-      urlPath = '/' + urlPath;
-    }
-    
-    // 如果是根路径，返回index.html
-    if (urlPath === '/') {
-      return `${this.baseUrl}index.html`;
-    }
-    
-    // 如果路径已经以.html结尾，直接使用
-    if (urlPath.endsWith('.html')) {
-      return `${this.baseUrl}${urlPath.substring(1)}`;
-    }
-    
-    // 其他路径添加.html后缀
-    return `${this.baseUrl}${urlPath.substring(1)}.html`;
-  }
-
-  private parseHtmlContent(html: string, path: string): Document {
-    // 提取标题
-    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    const title = titleMatch ? titleMatch[1].trim() : this.getTitleFromPath(path);
-
-    // 提取主要内容
-    const contentMatch = html.match(/<main[^>]*>([\s\S]*?)<\/main>/i) || 
-                        html.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
-                        html.match(/<div[^>]*class="[^"]*content[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
-    
-    const content = contentMatch ? contentMatch[1] : html;
-
-    // 确定类别
-    const category = this.determineCategory(path);
-
-    return {
-      path,
-      title,
-      content,
-      frontmatter: {},
-      lastModified: new Date(),
-      category
-    };
-  }
-
-  private extractTextFromHtml(html: string): string {
-    // 简单的HTML标签移除
-    return html
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<[^>]*>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
-
-  private getTitleFromPath(path: string): string {
-    return path
-      .replace(/^\//, '')
-      .replace(/\.html$/, '')
-      .replace(/[-_]/g, ' ')
-      .replace(/\b\w/g, l => l.toUpperCase());
-  }
-
-  private determineCategory(path: string): 'frontend' | 'backend' | 'general' {
-    if (path.startsWith('/frontend/')) {
-      return 'frontend';
-    } else if (path.startsWith('/backend/')) {
-      return 'backend';
-    } else {
-      return 'general';
     }
   }
 
@@ -455,11 +445,6 @@ export class RemoteDocumentService {
     try {
       const urlObj = new URL(url);
       
-      // 检查路径是否包含基础路径
-      if (!urlObj.pathname.startsWith('/zongheng-doc/')) {
-        return false;
-      }
-      
       // 排除一些特殊路径
       if (urlObj.pathname.includes('/assets/') || 
           urlObj.pathname.includes('.css') || 
@@ -477,87 +462,219 @@ export class RemoteDocumentService {
     }
   }
 
+
   /**
-   * 从URL提取路径
+   * 验证是否为有效的文档URL
    */
-  private extractPathFromUrl(url: string): string | null {
+  private isValidDocumentUrl(url: string): boolean {
     try {
       const urlObj = new URL(url);
-      let path = urlObj.pathname;
+      const pathname = urlObj.pathname;
       
-      // 移除基础路径前缀
-      if (path.startsWith('/zhongheng-doc')) {
-        path = path.replace('/zhongheng-doc', '') || '/';
+      // 排除静态资源
+      if (pathname.includes('/assets/') || 
+          pathname.includes('.css') || 
+          pathname.includes('.js') || 
+          pathname.includes('.png') || 
+          pathname.includes('.jpg') || 
+          pathname.includes('.ico')) {
+        return false;
       }
       
-      // 对于纯HTML静态站点，保留.html后缀
-      // 如果路径没有.html后缀且不是根路径，添加.html
-      if (!path.endsWith('.html') && path !== '/' && path !== '') {
-        path = path + '.html';
+      // 排除API路径
+      if (pathname.startsWith('/api/')) {
+        return false;
       }
       
-      // 确保路径以/开头
-      if (!path.startsWith('/')) {
-        path = '/' + path;
-      }
-      
-      // 处理根路径
-      if (path === '') {
-        path = '/';
-      }
-      
-      return path;
+      return true;
     } catch (error) {
-      console.error(`URL解析失败: ${url}`, error);
-      return null;
+      return false;
     }
   }
 
   /**
-   * 验证是否为有效的文档路径
+   * 从URL创建文档对象
    */
-  private isValidDocumentPath(path: string): boolean {
-    // 排除静态资源
-    if (path.includes('/assets/') || 
-        path.includes('.css') || 
-        path.includes('.js') || 
-        path.includes('.png') || 
-        path.includes('.jpg') || 
-        path.includes('.ico')) {
-      return false;
-    }
-    
-    // 排除API路径
-    if (path.startsWith('/api/')) {
-      return false;
-    }
-    
-    return true;
-  }
-
-  /**
-   * 从路径创建文档对象
-   */
-  private async createDocumentFromPath(path: string): Promise<Document | null> {
+  private async createDocumentFromUrl(url: string): Promise<Document | null> {
     try {
-      const content = await this.getDocumentContent(path);
-      if (content) {
-        return content;
-      }
+      // 获取文档内容
+      const content = await this.getDocumentContent(url);
       
-      // 如果无法获取内容，创建基本信息
       return {
-        path,
-        title: this.getTitleFromPath(path),
-        content: '',
-        frontmatter: {},
-        lastModified: new Date(),
-        category: this.determineCategory(path)
+        path: url,
+        title: this.getTitleFromUrl(url),
+        content,
+        category: this.determineCategoryFromUrl(url)
       };
     } catch (error) {
-      console.error(`创建文档失败 ${path}:`, error);
+      console.error(`创建文档失败 ${url}:`, error);
       return null;
     }
   }
+
+  /**
+   * 从URL生成标题
+   */
+  private getTitleFromUrl(url: string): string {
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      return pathname
+        .replace(/^\//, '')
+        .replace(/\.html$/, '')
+        .replace(/[-_]/g, ' ')
+        .replace(/\b\w/g, l => l.toUpperCase());
+    } catch (error) {
+      return url;
+    }
+  }
+
+  /**
+   * 从URL确定文档类别
+   */
+  private determineCategoryFromUrl(url: string): 'frontend' | 'backend' | 'general' {
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      if (pathname.includes('/frontend/')) {
+        return 'frontend';
+      } else if (pathname.includes('/backend/')) {
+        return 'backend';
+      } else {
+        return 'general';
+      }
+    } catch (error) {
+      return 'general';
+    }
+  }
+
+  /**
+   * 构建URL
+   */
+  private buildUrl(path: string): string {
+    // 如果路径已经是完整URL，直接返回
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return path;
+    }
+    
+    // 处理相对路径
+    let urlPath = path;
+    if (!urlPath.startsWith('/')) {
+      urlPath = '/' + urlPath;
+    }
+    
+    return `${this.baseUrl}${urlPath}`;
+  }
+
+  /**
+   * 从HTML提取文本内容 - 改进版本，更好地提取文档内容
+   */
+  private extractTextFromHtml(html: string): string {
+    try {
+      // 移除脚本和样式
+      let cleanHtml = html
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
+        .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '');
+
+      // 提取主要内容区域
+      const contentSelectors = [
+        'main', 'article', '.content', '#content', '.main-content',
+        '.documentation', '.docs-content', '.page-content',
+        '.markdown-body', '.vuepress-content'
+      ];
+
+      let mainContent = '';
+      for (const selector of contentSelectors) {
+        const regex = new RegExp(`<${selector}[^>]*>([\\s\\S]*?)<\\/${selector}>`, 'gi');
+        const match = regex.exec(cleanHtml);
+        if (match && match[1]) {
+          mainContent = match[1];
+          break;
+        }
+      }
+
+      // 如果没有找到主要内容区域，使用整个body
+      if (!mainContent) {
+        const bodyMatch = cleanHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+        if (bodyMatch && bodyMatch[1]) {
+          mainContent = bodyMatch[1];
+        } else {
+          mainContent = cleanHtml;
+        }
+      }
+
+      // 移除导航和侧边栏
+      mainContent = mainContent
+        .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
+        .replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, '')
+        .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '')
+        .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
+        .replace(/<div[^>]*class="[^"]*(?:nav|sidebar|menu|header|footer)[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+
+      // 保留重要的结构化内容
+      const importantTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li', 'td', 'th', 'code', 'pre'];
+      
+      // 提取标题
+      const headings = mainContent.match(/<h[1-6][^>]*>([^<]+)<\/h[1-6]>/gi) || [];
+      const headingText = headings.map(h => h.replace(/<[^>]*>/g, '').trim()).join(' ');
+
+      // 提取段落和列表
+      const paragraphs = mainContent.match(/<p[^>]*>([^<]+)<\/p>/gi) || [];
+      const paragraphText = paragraphs.map(p => p.replace(/<[^>]*>/g, '').trim()).join(' ');
+
+      // 提取列表项
+      const listItems = mainContent.match(/<li[^>]*>([^<]+)<\/li>/gi) || [];
+      const listText = listItems.map(li => li.replace(/<[^>]*>/g, '').trim()).join(' ');
+
+      // 提取代码块
+      const codeBlocks = mainContent.match(/<pre[^>]*>([\s\S]*?)<\/pre>/gi) || [];
+      const codeText = codeBlocks.map(code => code.replace(/<[^>]*>/g, '').trim()).join(' ');
+
+      // 提取内联代码
+      const inlineCode = mainContent.match(/<code[^>]*>([^<]+)<\/code>/gi) || [];
+      const inlineCodeText = inlineCode.map(code => code.replace(/<[^>]*>/g, '').trim()).join(' ');
+
+      // 移除所有HTML标签
+      const textContent = mainContent
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      // 组合所有内容
+      const allContent = [
+        headingText,
+        paragraphText,
+        listText,
+        codeText,
+        inlineCodeText,
+        textContent
+      ].filter(content => content.length > 0).join(' ');
+
+      // 清理和格式化
+      return allContent
+        .replace(/\s+/g, ' ')
+        .replace(/\n\s*\n/g, '\n')
+        .trim();
+    } catch (error) {
+      console.error('HTML内容提取失败:', error);
+      // 回退到简单提取
+      return html
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+  }
+
+
 
 }

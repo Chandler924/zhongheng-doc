@@ -7,16 +7,16 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { RemoteDocumentService } from './dist/RemoteDocumentService.js';
 
 class RemoteZonghengMCPServer {
   constructor(baseUrl = 'https://moli2.zt.com.cn/zongheng-doc/') {
     this.baseUrl = baseUrl.replace(/\/$/, ''); // 移除末尾的斜杠
-    this.cache = new Map();
-    this.cacheTimeout = 5 * 60 * 1000; // 5分钟缓存
+    this.documentService = new RemoteDocumentService(baseUrl);
 
     this.server = new Server({
       name: 'zongheng-remote-mcp-server',
-      version: '1.0.0',
+      version: '2.0.0',
     });
 
     this.setupHandlers();
@@ -28,32 +28,42 @@ class RemoteZonghengMCPServer {
       return {
         tools: [
           {
-            name: 'search_docs',
-            description: `在文档站点中搜索相关内容（站点: ${this.baseUrl}）`,
+            name: 'zongheng-docs_search_docs',
+            description: `智能搜索纵横框架文档内容，支持自然语言查询和组件特定搜索（站点: ${this.baseUrl}）。例如：查询z-dialog组件的用法、搜索按钮组件的API等`,
             inputSchema: {
               type: 'object',
               properties: {
                 query: {
                   type: 'string',
-                  description: '搜索查询字符串',
+                  description: '搜索查询字符串，支持自然语言，如"查询z-dialog组件的用法"、"按钮组件的API"等',
                 },
                 category: {
                   type: 'string',
-                  description: '搜索类别 (frontend, backend, all)',
                   enum: ['frontend', 'backend', 'all'],
+                  description: '搜索类别：frontend(前端)、backend(后端)、all(全部)',
                   default: 'all',
-                },
-                limit: {
-                  type: 'number',
-                  description: '返回结果的最大数量',
-                  default: 10,
                 },
               },
               required: ['query'],
             },
           },
           {
-            name: 'get_doc_content',
+            name: 'zongheng-docs_list_docs',
+            description: `列出所有可用的文档（站点: ${this.baseUrl}）`,
+            inputSchema: {
+              type: 'object',
+              properties: {
+                category: {
+                  type: 'string',
+                  enum: ['frontend', 'backend', 'all'],
+                  description: '文档类别：frontend(前端)、backend(后端)、all(全部)',
+                  default: 'all',
+                },
+              },
+            },
+          },
+          {
+            name: 'zongheng-docs_get_doc_content',
             description: `获取指定文档的完整内容（站点: ${this.baseUrl}）`,
             inputSchema: {
               type: 'object',
@@ -67,31 +77,8 @@ class RemoteZonghengMCPServer {
             },
           },
           {
-            name: 'list_docs',
-            description: `列出所有可用的文档（站点: ${this.baseUrl}）`,
-            inputSchema: {
-              type: 'object',
-              properties: {
-                category: {
-                  type: 'string',
-                  description: '文档类别 (frontend, backend, all)',
-                  enum: ['frontend', 'backend', 'all'],
-                  default: 'all',
-                },
-              },
-            },
-          },
-          {
-            name: 'get_doc_structure',
+            name: 'zongheng-docs_get_doc_structure',
             description: `获取文档的目录结构（站点: ${this.baseUrl}）`,
-            inputSchema: {
-              type: 'object',
-              properties: {},
-            },
-          },
-          {
-            name: 'get_site_info',
-            description: '获取当前配置的站点信息',
             inputSchema: {
               type: 'object',
               properties: {},
@@ -107,16 +94,14 @@ class RemoteZonghengMCPServer {
 
       try {
         switch (name) {
-          case 'search_docs':
+          case 'zongheng-docs_search_docs':
             return await this.handleSearchDocs(args);
-          case 'get_doc_content':
-            return await this.handleGetDocContent(args);
-          case 'list_docs':
+          case 'zongheng-docs_list_docs':
             return await this.handleListDocs(args);
-          case 'get_doc_structure':
+          case 'zongheng-docs_get_doc_content':
+            return await this.handleGetDocContent(args);
+          case 'zongheng-docs_get_doc_structure':
             return await this.handleGetDocStructure();
-          case 'get_site_info':
-            return await this.handleGetSiteInfo();
           default:
             throw new Error(`未知工具: ${name}`);
         }
@@ -134,146 +119,20 @@ class RemoteZonghengMCPServer {
     });
   }
 
-  async handleSearchDocs(args) {
-    const { query, category = 'all', limit = 10 } = args;
-    
-    try {
-      // 使用动态搜索功能
-      const results = await this.searchDocuments(query, category, limit);
-      
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              query,
-              category,
-              results,
-              total: results.length,
-              site: this.baseUrl,
-              searchMethod: 'dynamic'
-            }, null, 2),
-          },
-        ],
-      };
-    } catch (error) {
-      console.error('搜索失败:', error);
-      
-      // 降级到简单搜索
-      const documents = await this.listDocuments(category);
-      const filteredDocs = documents.filter(doc => {
-        return doc.title.toLowerCase().includes(query.toLowerCase()) ||
-               doc.path.toLowerCase().includes(query.toLowerCase());
-      });
-
-      const results = filteredDocs.slice(0, limit).map(doc => ({
-        title: doc.title,
-        path: doc.path,
-        excerpt: `这是关于${doc.title}的文档内容...`,
-        score: 0.5,
-        category: doc.category,
-      }));
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              query,
-              category,
-              results,
-              total: results.length,
-              site: this.baseUrl,
-              searchMethod: 'fallback'
-            }, null, 2),
-          },
-        ],
-      };
-    }
-  }
-
-  async handleGetDocContent(args) {
-    const { path } = args;
-    
-    // 构建URL
-    let url;
-    if (path === '/') {
-      url = `${this.baseUrl}/index.html`;
-    } else {
-      url = `${this.baseUrl}${path}.html`;
-    }
-
-    try {
-      // 检查缓存
-      const cached = this.cache.get(url);
-      if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                path,
-                title: cached.title,
-                content: cached.content,
-                url,
-                site: this.baseUrl,
-                cached: true
-              }, null, 2),
-            },
-          ],
-        };
-      }
-
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const html = await response.text();
-      
-      // 提取标题
-      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-      const title = titleMatch ? titleMatch[1].trim() : '文档标题';
-
-      // 缓存内容
-      this.cache.set(url, {
-        content: html,
-        title,
-        timestamp: Date.now()
-      });
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              path,
-              title,
-              content: html,
-              url,
-              site: this.baseUrl,
-              cached: false
-            }, null, 2),
-          },
-        ],
-      };
-    } catch (error) {
-      throw new Error(`获取文档失败: ${error.message}`);
-    }
-  }
-
   async handleListDocs(args) {
-    const { category = 'all' } = args;
-    
     try {
-      // 使用动态文档发现
-      const documents = await this.listDocuments(category);
+      const { category = 'all' } = args;
+      
+      // 调用RemoteDocumentService的listDocuments方法
+      const documents = await this.documentService.listDocuments(category);
       
       return {
         content: [
           {
             type: 'text',
             text: JSON.stringify({
+              site: this.baseUrl,
+              method: 'listDocuments',
               category,
               documents: documents.map(doc => ({
                 path: doc.path,
@@ -281,378 +140,220 @@ class RemoteZonghengMCPServer {
                 category: doc.category
               })),
               total: documents.length,
-              site: this.baseUrl,
-              discoveryMethod: 'dynamic'
+              timestamp: new Date().toISOString()
             }, null, 2),
           },
         ],
       };
     } catch (error) {
-      console.error('获取文档列表失败:', error);
+      console.error('列出文档失败:', error);
       
-      // 降级到基本文档列表
-      const basicDocuments = [
-        { path: '/', title: '纵横框架文档', category: 'general' },
-        { path: '/frontend/guides/getting-started', title: '前端框架快速开始', category: 'frontend' },
-        { path: '/backend/getting-started', title: '后端框架快速开始', category: 'backend' },
-        { path: '/deployment', title: '部署指南', category: 'general' },
-      ];
-
-      const filteredDocs = category === 'all' 
-        ? basicDocuments 
-        : basicDocuments.filter(doc => doc.category === category);
-
       return {
         content: [
           {
             type: 'text',
             text: JSON.stringify({
-              category,
-              documents: filteredDocs,
-              total: filteredDocs.length,
               site: this.baseUrl,
-              discoveryMethod: 'fallback'
+              method: 'listDocuments',
+              category: args.category || 'all',
+              documents: [],
+              total: 0,
+              error: error.message,
+              timestamp: new Date().toISOString()
             }, null, 2),
           },
         ],
+        isError: true,
+      };
+    }
+  }
+
+  async handleSearchDocs(args) {
+    try {
+      const { query, category = 'all' } = args;
+      
+      if (!query) {
+        throw new Error('搜索查询不能为空');
+      }
+      
+      // 调用RemoteDocumentService的智能搜索方法
+      const documents = await this.documentService.searchDocuments(query, category);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              site: this.baseUrl,
+              method: 'intelligentSearch',
+              query,
+              category,
+              results: documents.map(doc => ({
+                path: doc.path,
+                title: doc.title,
+                category: doc.category,
+                content: doc.content.substring(0, 800) + (doc.content.length > 800 ? '...' : ''),
+                relevance: this.calculateRelevance(doc, query)
+              })),
+              total: documents.length,
+              timestamp: new Date().toISOString()
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      console.error('搜索文档失败:', error);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              site: this.baseUrl,
+              method: 'intelligentSearch',
+              query: args.query || '',
+              category: args.category || 'all',
+              results: [],
+              total: 0,
+              error: error.message,
+              timestamp: new Date().toISOString()
+            }, null, 2),
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+
+  async handleGetDocContent(args) {
+    try {
+      const { path } = args;
+      
+      if (!path) {
+        throw new Error('文档路径不能为空');
+      }
+      
+      // 获取文档内容
+      const content = await this.documentService.getDocumentContent(path);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              site: this.baseUrl,
+              method: 'getDocumentContent',
+              path,
+              content,
+              length: content.length,
+              timestamp: new Date().toISOString()
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      console.error('获取文档内容失败:', error);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              site: this.baseUrl,
+              method: 'getDocumentContent',
+              path: args.path || '',
+              content: '',
+              length: 0,
+              error: error.message,
+              timestamp: new Date().toISOString()
+            }, null, 2),
+          },
+        ],
+        isError: true,
       };
     }
   }
 
   async handleGetDocStructure() {
-    const structure = {
-      frontend: [
-        { title: '前端框架快速开始', path: '/frontend/getting-started' },
-        { title: '组件库', path: '/frontend/components' },
-        { title: '状态管理', path: '/frontend/state-management' },
-        { title: '路由配置', path: '/frontend/routing' },
-      ],
-      backend: [
-        { title: '后端框架快速开始', path: '/backend/getting-started' },
-        { title: 'API设计指南', path: '/backend/api-design' },
-        { title: '数据库', path: '/backend/database' },
-        { title: '中间件', path: '/backend/middleware' },
-      ],
-      general: [
-        { title: '纵横框架文档', path: '/' },
-        { title: '部署指南', path: '/deployment' },
-      ]
-    };
-    
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            ...structure,
-            site: this.baseUrl
-          }, null, 2),
-        },
-      ],
-    };
-  }
-
-  async handleGetSiteInfo() {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            site: this.baseUrl,
-            cacheSize: this.cache.size,
-            cacheTimeout: this.cacheTimeout,
-            version: '2.0.0',
-            features: [
-              'dynamic-document-discovery',
-              'intelligent-search',
-              'sitemap-parsing',
-              'html-crawling',
-              'fallback-mechanisms'
-            ]
-          }, null, 2),
-        },
-      ],
-    };
-  }
-
-  // 动态文档发现方法
-  async listDocuments(category = 'all') {
     try {
-      // 尝试从站点地图获取
-      const sitemapDocs = await this.discoverFromSitemap();
-      if (sitemapDocs.length > 0) {
-        return this.filterDocumentsByCategory(sitemapDocs, category);
-      }
-
-      // 尝试从爬取获取
-      const crawledDocs = await this.discoverFromCrawling();
-      if (crawledDocs.length > 0) {
-        return this.filterDocumentsByCategory(crawledDocs, category);
-      }
-
-      // 降级到基本文档
-      return this.getBasicDocuments(category);
-    } catch (error) {
-      console.error('动态文档发现失败:', error);
-      return this.getBasicDocuments(category);
-    }
-  }
-
-  async discoverFromSitemap() {
-    try {
-      const sitemapUrl = `${this.baseUrl}/sitemap.xml`;
-      const response = await fetch(sitemapUrl);
+      // 获取所有文档
+      const documents = await this.documentService.listDocuments('all');
       
-      if (!response.ok) {
-        return [];
-      }
-
-      const sitemapXml = await response.text();
-      const urls = this.parseSitemapXml(sitemapXml);
+      // 构建文档结构
+      const structure = this.buildDocumentStructure(documents);
       
-      const documents = [];
-      for (const url of urls) {
-        const path = this.extractPathFromUrl(url);
-        if (path && this.isValidDocumentPath(path)) {
-          documents.push({
-            path,
-            title: this.getTitleFromPath(path),
-            category: this.determineCategory(path)
-          });
-        }
-      }
-
-      return documents;
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              site: this.baseUrl,
+              method: 'getDocumentStructure',
+              structure,
+              total: documents.length,
+              timestamp: new Date().toISOString()
+            }, null, 2),
+          },
+        ],
+      };
     } catch (error) {
-      console.error('从站点地图发现文档失败:', error);
-      return [];
+      console.error('获取文档结构失败:', error);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              site: this.baseUrl,
+              method: 'getDocumentStructure',
+              structure: {},
+              total: 0,
+              error: error.message,
+              timestamp: new Date().toISOString()
+            }, null, 2),
+          },
+        ],
+        isError: true,
+      };
     }
   }
 
-  async discoverFromCrawling() {
-    try {
-      const visited = new Set();
-      const toVisit = ['/'];
-      const documents = [];
-
-      while (toVisit.length > 0 && visited.size < 50) {
-        const currentPath = toVisit.shift();
-        if (visited.has(currentPath)) continue;
-        
-        visited.add(currentPath);
-        
-        try {
-          const content = await this.getDocumentContent(currentPath);
-          if (content) {
-            documents.push({
-              path: currentPath,
-              title: content.title,
-              category: content.category
-            });
-            
-            // 提取页面中的链接
-            const links = this.extractLinksFromHtml(content.content);
-            for (const link of links) {
-              if (this.isValidDocumentPath(link) && !visited.has(link)) {
-                toVisit.push(link);
-              }
-            }
-          }
-        } catch (error) {
-          console.error(`爬取页面失败 ${currentPath}:`, error);
-        }
-      }
-
-      return documents;
-    } catch (error) {
-      console.error('爬取发现文档失败:', error);
-      return [];
-    }
-  }
-
-  async searchDocuments(query, category = 'all', limit = 10) {
-    const documents = await this.listDocuments(category);
-    const results = [];
-    
+  calculateRelevance(doc, query) {
+    const searchText = `${doc.title} ${doc.content}`.toLowerCase();
     const queryLower = query.toLowerCase();
-    const queryWords = queryLower.split(/\s+/).filter(word => word.length > 0);
-
-    for (const doc of documents) {
-      let score = 0;
-      let excerpt = '';
-      
-      try {
-        const content = await this.getDocumentContent(doc.path);
-        if (content) {
-          const text = this.extractTextFromHtml(content.content);
-          const textLower = text.toLowerCase();
-          const titleLower = doc.title.toLowerCase();
-          
-          // 计算匹配分数
-          if (titleLower.includes(queryLower)) {
-            score += 10;
-          }
-          
-          for (const word of queryWords) {
-            if (titleLower.includes(word)) {
-              score += 5;
-            }
-            const matches = (textLower.match(new RegExp(word, 'g')) || []).length;
-            score += matches * 2;
-          }
-          
-          if (doc.path.toLowerCase().includes(queryLower)) {
-            score += 3;
-          }
-          
-          // 生成摘要
-          if (text) {
-            excerpt = this.generateExcerpt(text, queryWords);
-          }
-          
-          if (score > 0) {
-            results.push({
-              path: doc.path,
-              title: doc.title,
-              excerpt: excerpt || `这是关于${doc.title}的文档内容...`,
-              score: score / 10,
-              category: doc.category
-            });
-          }
-        }
-      } catch (error) {
-        console.error(`搜索文档失败 ${doc.path}:`, error);
-      }
-    }
-
-    return results
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit);
-  }
-
-  // 辅助方法
-  parseSitemapXml(xml) {
-    const urls = [];
-    const urlRegex = /<loc>(.*?)<\/loc>/g;
-    let match;
     
-    while ((match = urlRegex.exec(xml)) !== null) {
-      urls.push(match[1]);
+    let score = 0;
+    
+    // 标题匹配得分更高
+    if (doc.title.toLowerCase().includes(queryLower)) {
+      score += 10;
     }
     
-    return urls;
-  }
-
-  extractPathFromUrl(url) {
-    try {
-      const urlObj = new URL(url);
-      const path = urlObj.pathname;
-      
-      if (path.startsWith('/zhongheng-doc')) {
-        return path.replace('/zhongheng-doc', '') || '/';
-      }
-      
-      return path;
-    } catch (error) {
-      return null;
-    }
-  }
-
-  isValidDocumentPath(path) {
-    if (path.includes('/assets/') || 
-        path.includes('.css') || 
-        path.includes('.js') || 
-        path.includes('.png') || 
-        path.includes('.jpg') || 
-        path.includes('.ico')) {
-      return false;
-    }
+    // 内容匹配
+    const contentMatches = (searchText.match(new RegExp(queryLower, 'g')) || []).length;
+    score += contentMatches;
     
-    if (path.startsWith('/api/')) {
-      return false;
-    }
+    return Math.min(score, 100); // 限制最大得分为100
+  }
+
+  buildDocumentStructure(documents) {
+    const structure = {
+      frontend: [],
+      backend: [],
+      general: []
+    };
     
-    return true;
-  }
-
-  getTitleFromPath(path) {
-    return path
-      .replace(/^\//, '')
-      .replace(/\.html$/, '')
-      .replace(/[-_]/g, ' ')
-      .replace(/\b\w/g, l => l.toUpperCase());
-  }
-
-  determineCategory(path) {
-    if (path.startsWith('/frontend/')) {
-      return 'frontend';
-    } else if (path.startsWith('/backend/')) {
-      return 'backend';
-    } else {
-      return 'general';
-    }
-  }
-
-  extractLinksFromHtml(html) {
-    const links = [];
-    const linkRegex = /<a[^>]+href=["']([^"']+)["'][^>]*>/gi;
-    let match;
+    documents.forEach(doc => {
+      structure[doc.category].push({
+        path: doc.path,
+        title: doc.title
+      });
+    });
     
-    while ((match = linkRegex.exec(html)) !== null) {
-      const href = match[1];
-      
-      if (href.startsWith('/')) {
-        const path = href.replace('/zhongheng-doc', '') || '/';
-        links.push(path);
-      } else if (href.startsWith('./') || !href.includes('://')) {
-        links.push(href);
-      }
-    }
-    
-    return [...new Set(links)];
+    return structure;
   }
 
-  extractTextFromHtml(html) {
-    return html
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<[^>]*>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
 
-  generateExcerpt(text, queryWords) {
-    const sentences = text.split(/[.!?。！？]/).filter(s => s.trim().length > 0);
-    
-    for (const sentence of sentences) {
-      const sentenceLower = sentence.toLowerCase();
-      for (const word of queryWords) {
-        if (sentenceLower.includes(word)) {
-          return sentence.trim().substring(0, 200) + (sentence.length > 200 ? '...' : '');
-        }
-      }
-    }
-    
-    return text.substring(0, 200) + (text.length > 200 ? '...' : '');
-  }
-
-  filterDocumentsByCategory(documents, category) {
-    if (category === 'all') {
-      return documents;
-    }
-    return documents.filter(doc => doc.category === category);
-  }
-
-  getBasicDocuments(category) {
-    const basicDocs = [
-      { path: '/', title: '纵横框架文档', category: 'general' },
-      { path: '/frontend/guides/getting-started', title: '前端框架快速开始', category: 'frontend' },
-      { path: '/backend/getting-started', title: '后端框架快速开始', category: 'backend' },
-      { path: '/deployment', title: '部署指南', category: 'general' }
-    ];
-
-    return this.filterDocumentsByCategory(basicDocs, category);
-  }
 
   async run() {
     const transport = new StdioServerTransport();
@@ -686,3 +387,6 @@ if (args.length > 0) {
 // 启动服务器
 const server = new RemoteZonghengMCPServer(baseUrl);
 server.run().catch(console.error);
+
+// 导出类供测试使用
+export { RemoteZonghengMCPServer };
