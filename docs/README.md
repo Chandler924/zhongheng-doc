@@ -5,16 +5,16 @@
 ## 🚀 快速开始
 
 ### 前端框架
-- [快速开始](/frontend/getting-started) - 5分钟搭建你的第一个应用
-- [组件库](/frontend/components) - 丰富的UI组件
-- [状态管理](/frontend/state-management) - 高效的状态管理方案
-- [路由配置](/frontend/routing) - 灵活的路由系统
+- [快速开始](/zongheng-doc/frontend/getting-started) - 5分钟搭建你的第一个应用
+- [组件库](/zongheng-doc/frontend/components) - 丰富的UI组件
+- [状态管理](/zongheng-doc/frontend/state-management) - 高效的状态管理方案
+- [路由配置](/zongheng-doc/frontend/routing) - 灵活的路由系统
 
 ### 后端框架
-- [快速开始](/backend/getting-started) - 快速搭建后端服务
-- [API设计](/backend/api-design) - RESTful API最佳实践
-- [数据库](/backend/database) - 数据库操作指南
-- [中间件](/backend/middleware) - 中间件开发指南
+- [快速开始](/zongheng-doc/backend/getting-started) - 快速搭建后端服务
+- [API设计](/zongheng-doc/backend/api-design) - RESTful API最佳实践
+- [数据库](/zongheng-doc/backend/database) - 数据库操作指南
+- [中间件](/zongheng-doc/backend/middleware) - 中间件开发指南
 
 ## 📖 文档特色
 

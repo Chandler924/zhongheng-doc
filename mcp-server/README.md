@@ -261,6 +261,6 @@ MIT License
 
 ## 相关链接
 
-- [纵横框架文档](https://chandler924.github.io/zhongheng-doc/)
+- [纵横框架文档](https://moli2.zt.com.cn/zongheng-doc/)
 - [GitHub仓库](https://github.com/Chandler924/zhongheng-doc)
 - [MCP协议文档](https://modelcontextprotocol.io/)

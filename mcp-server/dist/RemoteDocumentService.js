@@ -4,7 +4,7 @@ export class RemoteDocumentService {
     documentCache = new Map();
     cacheTimeout = 5 * 60 * 1000; // 5分钟缓存
     documentCacheTimeout = 30 * 60 * 1000; // 30分钟文档列表缓存
-    constructor(baseUrl = 'https://chandler924.github.io/zhongheng-doc') {
+    constructor(baseUrl = 'https://moli2.zt.com.cn/zongheng-doc/') {
         this.baseUrl = baseUrl.replace(/\/$/, ''); // 移除末尾的斜杠
     }
     async getDocumentContent(path) {

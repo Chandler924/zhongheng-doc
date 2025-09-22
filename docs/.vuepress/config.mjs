@@ -9,7 +9,7 @@ export default defineUserConfig({
   description: '纵横前端和后端框架的完整文档',
 
   // 基础路径配置（用于GitHub Pages部署）
-  base: '/zhongheng-doc/',
+  base: '/zongheng-doc/',
 
   // 主题配置
   theme: defaultTheme({

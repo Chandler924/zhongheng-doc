@@ -1,6 +1,6 @@
 {
   "name": "zongheng-mcp-docs",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "纵横框架文档MCP服务器 - 动态文档发现和智能搜索，支持自定义站点URL",
   "main": "remote-mcp.js",
   "bin": {
@@ -20,7 +20,7 @@
     "clean": "rm -rf dist/",
     "compile": "tsc",
     "start": "node remote-mcp.js",
-    "test": "node remote-mcp.js --url=https://chandler924.github.io/zhongheng-doc",
+    "test": "node remote-mcp.js --url=https://moli2.zt.com.cn/zongheng-doc/",
     "test:dynamic": "node test-simple.js",
     "prepublishOnly": "npm run build"
   },

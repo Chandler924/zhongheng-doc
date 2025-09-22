@@ -9,7 +9,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 class RemoteZonghengMCPServer {
-  constructor(baseUrl = 'https://chandler924.github.io/zhongheng-doc') {
+  constructor(baseUrl = 'https://moli2.zt.com.cn/zongheng-doc/') {
     this.baseUrl = baseUrl.replace(/\/$/, ''); // 移除末尾的斜杠
     this.cache = new Map();
     this.cacheTimeout = 5 * 60 * 1000; // 5分钟缓存
@@ -673,7 +673,7 @@ if (process.env.MCP_ARGS) {
   }
 }
 
-let baseUrl = 'https://chandler924.github.io/zhongheng-doc';
+let baseUrl = 'https://moli2.zt.com.cn/zongheng-doc/';
 
 // 检查是否有自定义URL参数
 if (args.length > 0) {
