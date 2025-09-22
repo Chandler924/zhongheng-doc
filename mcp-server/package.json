@@ -1,10 +1,11 @@
 {
   "name": "zongheng-mcp-docs",
-  "version": "2.0.6",
+  "version": "2.0.8",
   "description": "纵横框架文档MCP服务器 - 动态文档发现和智能搜索，支持自定义站点URL",
   "main": "remote-mcp.js",
   "bin": {
-    "zongheng-mcp": "./bin/zongheng-mcp"
+    "zongheng-mcp": "./bin/zongheng-mcp",
+    "zongheng-mcp-docs": "./bin/zongheng-mcp"
   },
   "files": [
     "remote-mcp.js",
