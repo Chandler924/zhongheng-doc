@@ -11,36 +11,55 @@ export class RemoteDocumentService {
         this.baseUrl = baseUrl.replace(/\/$/, ''); // 移除末尾的斜杠
     }
     /**
-     * 获取文档内容
+     * 获取文档内容 - 增强版本，添加重试机制
      */
     async getDocumentContent(path) {
-        try {
-            // 构建URL
-            const url = this.buildUrl(path);
-            // 检查缓存
-            const cached = this.contentCache.get(url);
-            if (cached && Date.now() - cached.timestamp < this.contentCacheTimeout) {
-                return cached.content;
+        const maxRetries = 3;
+        const retryDelay = 1000; // 1秒
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                // 构建URL
+                const url = this.buildUrl(path);
+                // 检查缓存
+                const cached = this.contentCache.get(url);
+                if (cached && Date.now() - cached.timestamp < this.contentCacheTimeout) {
+                    return cached.content;
+                }
+                // 添加超时机制
+                const fetchPromise = this.customFetch(url);
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('请求超时')), 10000); // 10秒超时
+                });
+                const response = await Promise.race([fetchPromise, timeoutPromise]);
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        console.warn(`文档不存在: ${path}`);
+                        return '';
+                    }
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                const html = await response.text();
+                // 提取文本内容
+                const content = this.extractTextFromHtml(html);
+                // 缓存内容
+                this.contentCache.set(url, {
+                    content,
+                    timestamp: Date.now()
+                });
+                return content;
             }
-            // 获取内容
-            const response = await this.customFetch(url);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            catch (error) {
+                console.error(`获取文档内容失败 ${path} (尝试 ${attempt}/${maxRetries}):`, error);
+                if (attempt === maxRetries) {
+                    // 最后一次尝试失败，返回空内容而不是抛出错误
+                    console.error(`获取文档内容最终失败 ${path}:`, error);
+                    return '';
+                }
+                // 等待后重试
+                await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
             }
-            const html = await response.text();
-            // 提取文本内容
-            const content = this.extractTextFromHtml(html);
-            // 缓存内容
-            this.contentCache.set(url, {
-                content,
-                timestamp: Date.now()
-            });
-            return content;
         }
-        catch (error) {
-            console.error(`获取文档内容失败 ${path}:`, error);
-            return '';
-        }
+        return '';
     }
     /**
      * 自定义fetch方法，处理SSL证书问题
@@ -102,7 +121,7 @@ export class RemoteDocumentService {
             const cacheKey = `search_${query}_${category}`;
             const cached = this.searchCache.get(cacheKey);
             if (cached && Date.now() - cached.timestamp < this.searchCacheTimeout) {
-                console.log(`使用搜索缓存: ${query}`);
+                // console.log(`使用搜索缓存: ${query}`);
                 return cached.results;
             }
             // 获取所有文档
@@ -290,23 +309,24 @@ export class RemoteDocumentService {
     async discoverFromSitemap() {
         try {
             const sitemapUrl = `${this.baseUrl}/sitemap.xml`;
-            console.log(`正在从sitemap获取文档: ${sitemapUrl}`);
+            // console.log(`正在从sitemap获取文档: ${sitemapUrl}`);
             const response = await this.customFetch(sitemapUrl);
             if (!response.ok) {
-                console.log(`sitemap获取失败: HTTP ${response.status}`);
+                // console.log(`sitemap获取失败: HTTP ${response.status}`);
                 return [];
             }
             const sitemapXml = await response.text();
             const urls = this.parseSitemapXml(sitemapXml);
-            console.log(`从sitemap解析到 ${urls.length} 个URL`);
+            // console.log(`从sitemap解析到 ${urls.length} 个URL`);
             const documents = [];
             // 先过滤出有效的URL
             const validUrls = urls.filter(url => this.isValidDocumentUrl(url));
-            console.log(`过滤后得到 ${validUrls.length} 个有效文档URL`);
-            // 批量处理文档创建
-            const batchSize = 10; // 批量处理，避免并发过多
+            // console.log(`过滤后得到 ${validUrls.length} 个有效文档URL`);
+            // 批量处理文档创建，减少批量大小避免超时
+            const batchSize = 5; // 减少批量大小，避免并发过多
             for (let i = 0; i < validUrls.length; i += batchSize) {
                 const batch = validUrls.slice(i, i + batchSize);
+                // console.log(`处理文档批次 ${Math.floor(i/batchSize) + 1}/${Math.ceil(validUrls.length/batchSize)} (${batch.length} 个文档)`);
                 const batchPromises = batch.map(async (url) => {
                     try {
                         const doc = await this.createDocumentFromUrl(url);
@@ -314,17 +334,23 @@ export class RemoteDocumentService {
                     }
                     catch (error) {
                         console.error(`创建文档失败 ${url}:`, error);
-                        return null;
+                        // 返回一个基本的文档对象而不是null
+                        return {
+                            path: url,
+                            title: this.getTitleFromUrl(url),
+                            content: '文档内容获取失败',
+                            category: this.determineCategoryFromUrl(url)
+                        };
                     }
                 });
                 const batchResults = await Promise.all(batchPromises);
                 documents.push(...batchResults.filter(doc => doc !== null));
                 // 添加小延迟，避免请求过于频繁
                 if (i + batchSize < validUrls.length) {
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                    await new Promise(resolve => setTimeout(resolve, 200)); // 增加延迟
                 }
             }
-            console.log(`从sitemap成功创建 ${documents.length} 个文档`);
+            // console.log(`从sitemap成功创建 ${documents.length} 个文档`);
             return documents;
         }
         catch (error) {
@@ -404,22 +430,29 @@ export class RemoteDocumentService {
         }
     }
     /**
-     * 从URL创建文档对象
+     * 从URL创建文档对象 - 增强版本，更好的错误处理
      */
     async createDocumentFromUrl(url) {
         try {
             // 获取文档内容
             const content = await this.getDocumentContent(url);
+            // 即使内容为空也创建文档对象，避免丢失文档结构信息
             return {
                 path: url,
                 title: this.getTitleFromUrl(url),
-                content,
+                content: content || '文档内容获取失败',
                 category: this.determineCategoryFromUrl(url)
             };
         }
         catch (error) {
             console.error(`创建文档失败 ${url}:`, error);
-            return null;
+            // 返回一个基本的文档对象，而不是null
+            return {
+                path: url,
+                title: this.getTitleFromUrl(url),
+                content: '文档内容获取失败',
+                category: this.determineCategoryFromUrl(url)
+            };
         }
     }
     /**

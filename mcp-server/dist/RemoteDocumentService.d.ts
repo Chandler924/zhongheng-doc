@@ -22,7 +22,7 @@ export declare class RemoteDocumentService {
     private ignoreSSL;
     constructor(baseUrl?: string);
     /**
-     * 获取文档内容
+     * 获取文档内容 - 增强版本，添加重试机制
      */
     getDocumentContent(path: string): Promise<string>;
     /**
@@ -75,7 +75,7 @@ export declare class RemoteDocumentService {
      */
     private isValidDocumentUrl;
     /**
-     * 从URL创建文档对象
+     * 从URL创建文档对象 - 增强版本，更好的错误处理
      */
     private createDocumentFromUrl;
     /**
