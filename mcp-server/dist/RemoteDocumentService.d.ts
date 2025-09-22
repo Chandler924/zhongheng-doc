@@ -26,29 +26,9 @@ export declare class RemoteDocumentService {
     getDocumentContent(path: string): Promise<Document | null>;
     listDocuments(category?: 'frontend' | 'backend' | 'all'): Promise<Document[]>;
     /**
-     * 动态发现所有文档
-     */
-    private discoverDocuments;
-    /**
      * 从站点地图发现文档
      */
     private discoverFromSitemap;
-    /**
-     * 通过爬取页面链接发现文档
-     */
-    private discoverFromCrawling;
-    /**
-     * 基于常见路径模式发现文档
-     */
-    private discoverFromCommonPatterns;
-    /**
-     * 发现组件文档路径
-     */
-    private discoverComponentPaths;
-    /**
-     * 获取基本文档列表（降级方案）
-     */
-    private getBasicDocuments;
     getDocumentStructure(): Promise<DocumentStructure>;
     getAllDocumentTexts(): Promise<Array<{
         path: string;
@@ -66,7 +46,7 @@ export declare class RemoteDocumentService {
         error?: string;
     }>;
     /**
-     * 智能搜索文档内容
+     * 智能搜索文档内容（支持大小写查询）
      */
     searchDocuments(query: string, category?: 'frontend' | 'backend' | 'all', limit?: number): Promise<Array<{
         path: string;
@@ -104,9 +84,5 @@ export declare class RemoteDocumentService {
      * 从路径创建文档对象
      */
     private createDocumentFromPath;
-    /**
-     * 从HTML中提取链接
-     */
-    private extractLinksFromHtml;
 }
 //# sourceMappingURL=RemoteDocumentService.d.ts.map

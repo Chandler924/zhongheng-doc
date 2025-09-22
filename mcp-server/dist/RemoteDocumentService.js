@@ -41,8 +41,8 @@ export class RemoteDocumentService {
         if (cached && Date.now() - cached.timestamp < this.documentCacheTimeout) {
             return cached;
         }
-        // 动态发现文档
-        const documents = await this.discoverDocuments();
+        // 从站点地图获取文档
+        const documents = await this.discoverFromSitemap();
         // 过滤文档
         let filteredDocuments = documents;
         if (category !== 'all') {
@@ -52,42 +52,6 @@ export class RemoteDocumentService {
         this.documentCache.set(cacheKey, filteredDocuments);
         this.documentCache.get(cacheKey).timestamp = Date.now();
         return filteredDocuments;
-    }
-    /**
-     * 动态发现所有文档
-     */
-    async discoverDocuments() {
-        const documents = [];
-        try {
-            // 方法1: 尝试从站点地图获取（优先使用sitemap）
-            console.log('开始文档发现流程...');
-            const sitemapDocs = await this.discoverFromSitemap();
-            if (sitemapDocs.length > 0) {
-                console.log(`✅ 从sitemap成功发现 ${sitemapDocs.length} 个文档`);
-                return sitemapDocs;
-            }
-            console.log('⚠️ sitemap发现失败，尝试其他方法...');
-            // 方法2: 从首页开始爬取链接
-            const crawledDocs = await this.discoverFromCrawling();
-            if (crawledDocs.length > 0) {
-                console.log(`✅ 从爬取成功发现 ${crawledDocs.length} 个文档`);
-                return crawledDocs;
-            }
-            console.log('⚠️ 爬取发现失败，使用常见路径模式...');
-            // 方法3: 基于VuePress配置的常见路径模式
-            const commonDocs = await this.discoverFromCommonPatterns();
-            if (commonDocs.length > 0) {
-                console.log(`✅ 从常见路径成功发现 ${commonDocs.length} 个文档`);
-                return commonDocs;
-            }
-            console.log('⚠️ 所有发现方法失败，使用基本文档列表...');
-            return this.getBasicDocuments();
-        }
-        catch (error) {
-            console.error('文档发现失败:', error);
-            // 降级到基本路径
-            return this.getBasicDocuments();
-        }
     }
     /**
      * 从站点地图发现文档
@@ -143,109 +107,6 @@ export class RemoteDocumentService {
             console.error('从站点地图发现文档失败:', error);
             return [];
         }
-    }
-    /**
-     * 通过爬取页面链接发现文档
-     */
-    async discoverFromCrawling() {
-        try {
-            const visited = new Set();
-            const toVisit = ['/'];
-            const documents = [];
-            while (toVisit.length > 0 && visited.size < 100) { // 限制爬取数量
-                const currentPath = toVisit.shift();
-                if (visited.has(currentPath))
-                    continue;
-                visited.add(currentPath);
-                try {
-                    const content = await this.getDocumentContent(currentPath);
-                    if (content) {
-                        documents.push(content);
-                        // 提取页面中的链接
-                        const links = this.extractLinksFromHtml(content.content);
-                        for (const link of links) {
-                            if (this.isValidDocumentPath(link) && !visited.has(link)) {
-                                toVisit.push(link);
-                            }
-                        }
-                    }
-                }
-                catch (error) {
-                    console.error(`爬取页面失败 ${currentPath}:`, error);
-                }
-            }
-            return documents;
-        }
-        catch (error) {
-            console.error('爬取发现文档失败:', error);
-            return [];
-        }
-    }
-    /**
-     * 基于常见路径模式发现文档
-     */
-    async discoverFromCommonPatterns() {
-        const commonPaths = [
-            '/',
-            '/frontend/guides/getting-started',
-            '/frontend/guides/state-management',
-            '/frontend/architecture/overview',
-            '/backend/getting-started',
-            '/backend/api-design',
-            '/deployment'
-        ];
-        // 动态发现组件文档
-        const componentPaths = await this.discoverComponentPaths();
-        commonPaths.push(...componentPaths);
-        const documents = [];
-        for (const path of commonPaths) {
-            try {
-                const doc = await this.createDocumentFromPath(path);
-                if (doc) {
-                    documents.push(doc);
-                }
-            }
-            catch (error) {
-                console.error(`创建文档失败 ${path}:`, error);
-            }
-        }
-        return documents;
-    }
-    /**
-     * 发现组件文档路径
-     */
-    async discoverComponentPaths() {
-        const componentPaths = [];
-        // 尝试访问组件索引页面
-        const indexPaths = [
-            '/frontend/components/mobile',
-            '/frontend/components/pc'
-        ];
-        for (const indexPath of indexPaths) {
-            try {
-                const content = await this.getDocumentContent(indexPath);
-                if (content) {
-                    const links = this.extractLinksFromHtml(content.content);
-                    componentPaths.push(...links.filter(link => link.includes('/frontend/components/') &&
-                        link !== indexPath));
-                }
-            }
-            catch (error) {
-                console.error(`发现组件路径失败 ${indexPath}:`, error);
-            }
-        }
-        return componentPaths;
-    }
-    /**
-     * 获取基本文档列表（降级方案）
-     */
-    getBasicDocuments() {
-        return [
-            { path: '/', title: '纵横框架文档', category: 'general', content: '', frontmatter: {}, lastModified: new Date() },
-            { path: '/frontend/guides/getting-started', title: '前端框架快速开始', category: 'frontend', content: '', frontmatter: {}, lastModified: new Date() },
-            { path: '/backend/getting-started', title: '后端框架快速开始', category: 'backend', content: '', frontmatter: {}, lastModified: new Date() },
-            { path: '/deployment', title: '部署指南', category: 'general', content: '', frontmatter: {}, lastModified: new Date() }
-        ];
     }
     async getDocumentStructure() {
         const documents = await this.listDocuments();
@@ -331,11 +192,12 @@ export class RemoteDocumentService {
         }
     }
     /**
-     * 智能搜索文档内容
+     * 智能搜索文档内容（支持大小写查询）
      */
     async searchDocuments(query, category = 'all', limit = 10) {
         const documents = await this.listDocuments(category);
         const results = [];
+        // 支持大小写查询，同时保留原始查询和转换为小写
         const queryLower = query.toLowerCase();
         const queryWords = queryLower.split(/\s+/).filter(word => word.length > 0);
         for (const doc of documents) {
@@ -352,22 +214,26 @@ export class RemoteDocumentService {
                 const textLower = text.toLowerCase();
                 const titleLower = doc.title.toLowerCase();
                 // 计算匹配分数
-                // 标题完全匹配
-                if (titleLower.includes(queryLower)) {
+                // 标题完全匹配（大小写敏感）
+                if (doc.title.includes(query)) {
+                    score += 15; // 提高大小写匹配的分数
+                }
+                // 标题完全匹配（忽略大小写）
+                else if (titleLower.includes(queryLower)) {
                     score += 10;
                 }
-                // 标题单词匹配
+                // 标题单词匹配（忽略大小写）
                 for (const word of queryWords) {
                     if (titleLower.includes(word)) {
                         score += 5;
                     }
                 }
-                // 内容匹配
+                // 内容匹配（忽略大小写）
                 for (const word of queryWords) {
                     const matches = (textLower.match(new RegExp(word, 'g')) || []).length;
                     score += matches * 2;
                 }
-                // 路径匹配
+                // 路径匹配（忽略大小写）
                 if (doc.path.toLowerCase().includes(queryLower)) {
                     score += 3;
                 }
@@ -421,7 +287,11 @@ export class RemoteDocumentService {
         if (urlPath === '/') {
             return `${this.baseUrl}/index.html`;
         }
-        // 其他路径直接拼接
+        // 如果路径已经以.html结尾，直接使用
+        if (urlPath.endsWith('.html')) {
+            return `${this.baseUrl}${urlPath}`;
+        }
+        // 其他路径添加.html后缀
         return `${this.baseUrl}${urlPath}.html`;
     }
     parseHtmlContent(html, path) {
@@ -500,12 +370,8 @@ export class RemoteDocumentService {
     isValidSitemapUrl(url) {
         try {
             const urlObj = new URL(url);
-            // 检查域名是否匹配
-            if (!urlObj.hostname.includes('chandler924.github.io')) {
-                return false;
-            }
             // 检查路径是否包含基础路径
-            if (!urlObj.pathname.startsWith('/zhongheng-doc/')) {
+            if (!urlObj.pathname.startsWith('/zongheng-doc/')) {
                 return false;
             }
             // 排除一些特殊路径
@@ -596,28 +462,6 @@ export class RemoteDocumentService {
             console.error(`创建文档失败 ${path}:`, error);
             return null;
         }
-    }
-    /**
-     * 从HTML中提取链接
-     */
-    extractLinksFromHtml(html) {
-        const links = [];
-        const linkRegex = /<a[^>]+href=["']([^"']+)["'][^>]*>/gi;
-        let match;
-        while ((match = linkRegex.exec(html)) !== null) {
-            const href = match[1];
-            // 处理相对链接
-            if (href.startsWith('/')) {
-                // 移除基础路径前缀
-                const path = href.replace('/zhongheng-doc', '') || '/';
-                links.push(path);
-            }
-            else if (href.startsWith('./') || !href.includes('://')) {
-                // 处理相对路径
-                links.push(href);
-            }
-        }
-        return [...new Set(links)]; // 去重
     }
 }
 //# sourceMappingURL=RemoteDocumentService.js.map
