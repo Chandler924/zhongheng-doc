@@ -3,8 +3,8 @@ const path = require('path');
 
 // 站点配置
 const siteConfig = {
-  hostname: 'https://chandler924.github.io',
-  base: '/zhongheng-doc/',
+  hostname: 'https://moli2.zt.com.cn',
+  base: '/zongheng-doc/',
   changefreq: 'weekly',
   priority: 0.5
 };
@@ -22,7 +22,7 @@ function getAllHtmlFiles(dir, basePath = '') {
       files.push(...getAllHtmlFiles(fullPath, path.join(basePath, item)));
     } else if (item.endsWith('.html') && item !== '404.html') {
       const relativePath = path.join(basePath, item).replace(/\\/g, '/');
-      const urlPath = relativePath === 'index.html' ? '/' : '/' + relativePath.replace('.html', '');
+      const urlPath = relativePath === 'index.html' ? '/index.html' : '/' + relativePath;
       files.push(urlPath);
     }
   }

@@ -357,16 +357,16 @@ export class RemoteDocumentService {
     
     // 如果是根路径，返回index.html
     if (urlPath === '/') {
-      return `${this.baseUrl}/index.html`;
+      return `${this.baseUrl}index.html`;
     }
     
     // 如果路径已经以.html结尾，直接使用
     if (urlPath.endsWith('.html')) {
-      return `${this.baseUrl}${urlPath}`;
+      return `${this.baseUrl}${urlPath.substring(1)}`;
     }
     
     // 其他路径添加.html后缀
-    return `${this.baseUrl}${urlPath}.html`;
+    return `${this.baseUrl}${urlPath.substring(1)}.html`;
   }
 
   private parseHtmlContent(html: string, path: string): Document {
