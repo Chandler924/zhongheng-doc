@@ -11,6 +11,7 @@ export default defineUserConfig({
   // 基础路径配置（用于GitHub Pages部署）
   base: '/zongheng-doc/',
 
+
   // 主题配置
   theme: defaultTheme({
     // 导航栏配置
@@ -227,4 +228,23 @@ export default defineUserConfig({
       }
     ]
   ],
+
+  // Markdown配置
+  markdown: {
+    // 启用链接检查
+    linkify: true,
+    // 自动转换链接
+    externalLinks: {
+      target: '_blank',
+      rel: 'noopener noreferrer'
+    }
+  },
+
+  // 链接配置
+  locales: {
+    '/': {
+      // 内部链接配置
+      internalLinkRegex: /^\/[^\/]/,
+    }
+  },
 })
